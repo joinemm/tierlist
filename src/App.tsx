@@ -1,8 +1,11 @@
-import type { Component } from 'solid-js';
+import { type Component } from 'solid-js';
+import { BoardExample } from './Row';
 
 const App: Component = () => {
   return (
-    <p class="text-4xl text-green-700 text-center py-20">Hello tailwind!</p>
+    <div class="w-full p-8">
+      <BoardExample />
+    </div>
   );
 };
 
