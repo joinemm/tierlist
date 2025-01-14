@@ -3,6 +3,11 @@ import solidPlugin from 'vite-plugin-solid';
 
 export default defineConfig({
   plugins: [solidPlugin()],
+  optimizeDeps: {
+    exclude: [
+      "@modular-forms/solid"
+    ],
+  },
   server: {
     port: 3000,
   },
