@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-slate-800
+    @apply bg-slate-800;
   }
 }
 
@@ -64,7 +64,7 @@
 }
 
 .reactEasyCrop_CropAreaGrid::before {
-  content: ' ';
+  content: " ";
   box-sizing: border-box;
   position: absolute;
   border: 1px solid rgba(255, 255, 255, 0.5);
@@ -77,7 +77,7 @@
 }
 
 .reactEasyCrop_CropAreaGrid::after {
-  content: ' ';
+  content: " ";
   box-sizing: border-box;
   position: absolute;
   border: 1px solid rgba(255, 255, 255, 0.5);

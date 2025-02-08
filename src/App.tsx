@@ -1,10 +1,8 @@
 import { type Component } from "solid-js";
-import { TierList } from "./TierListNew";
+import { TierList } from "./Tierlist";
 
 const App: Component = () => {
-  return (
-    <TierList />
-  );
+  return <TierList />;
 };
 
 export default App;

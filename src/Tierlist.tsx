@@ -1,154 +1,126 @@
 import {
-  DragDropProvider,
-  DragDropSensors,
-  DragOverlay,
-  SortableProvider,
-  createSortable,
   closestCenter,
-  maybeTransformStyle,
-  Id,
   DragEventHandler,
   Draggable,
   Droppable,
+  Id,
   CollisionDetector,
+  DragDropProvider,
+  DragDropSensors,
+  SortableProvider,
+  DragOverlay,
+  createSortable,
+  maybeTransformStyle,
 } from "@thisbeyond/solid-dnd";
-import {
-  batch,
-  createSignal,
-  For,
-  onMount,
-  VoidComponent,
-  Show,
-} from "solid-js";
-import { createStore } from "solid-js/store";
 import Big from "big.js";
-import { TippyOptions } from "solid-tippy";
-import { tippy } from "solid-tippy";
-import { GroupForm, ItemForm } from "./Form";
-
+import { batch, onMount, For, createSignal, Show } from "solid-js";
+import {
+  createStore,
+  produce,
+  reconcile,
+  SetStoreFunction,
+} from "solid-js/store";
+import * as htmlToImage from "html-to-image";
+import download from "downloadjs";
+import { tippy, TippyOptions } from "solid-tippy";
 import { Portal } from "solid-js/web";
-
-
+import { TierForm, ItemForm } from "./Form";
+import { FaSolidPen } from "solid-icons/fa";
+import { FiPlusSquare } from "solid-icons/fi";
+import { unwrap } from "solid-js/store";
 tippy;
+
+export type Tier = {
+  id: Id;
+  name: string;
+  color: string;
+  type: string;
+  order: string;
+};
+
+export type Item = {
+  id: Id;
+  name: string;
+  image_url: string;
+  tier: Id;
+  type: string;
+  order: string;
+};
+
+type State = {
+  tiers: Tier[];
+  items: Item[];
+};
 
 declare module "solid-js" {
   namespace JSX {
     interface Directives {
+      sortable: any;
       tippy: TippyOptions;
     }
   }
 }
 
-export const ORDER_DELTA = 1000;
+const UNSORTED_ID = 1;
+let nextOrder = 0;
+let nextId = 1;
 
-interface Base {
-  id: Id;
-  name: string;
-  type: "group" | "item";
-  order: string;
-  color?: string;
-}
+const ImportButton = (props: { importer: Function }) => {
+  const { Modal, setModalOpen } = createModal();
+  const [file, setFile] = createSignal(null);
 
-export interface Group extends Base {
-  type: "group";
-}
-
-export interface Item extends Base {
-  type: "item";
-  img: string;
-  group: Id;
-}
-
-export type Entity = Group | Item;
-
-const sortByOrder = (entities: Entity[]) => {
-  const sorted = entities.map((item) => ({ order: new Big(item.order), item }));
-  sorted.sort((a, b) => a.order.cmp(b.order));
-  return sorted.map((entry) => entry.item);
-};
-
-function createModal(entities, id, editor, deletor) {
-  const [open, setOpen] = createSignal(false);
-
-  return {
-    openModal() {
-      setOpen(true);
-    },
-    Modal() {
-      return (
-        <Portal>
-          <Show when={open()}>
-            <div class="absolute inset-0 flex justify-center w-screen h-screen bg-opacity-50 bg-black items-center">
-              <GroupForm
-                entity={entities[id]}
-                onSubmit={(values) => {
-                  setOpen(false);
-                  editor(id, values);
-                }}
-                onDelete={() => deletor(id)}
-              />
-            </div>
-          </Show>
-        </Portal>
-      );
-    },
+  const handleChange = (e) => {
+    const fileReader = new FileReader();
+    fileReader.readAsText(e.target.files[0], "UTF-8");
+    fileReader.onload = (e) => {
+      setFile(e.target.result);
+    };
   };
-}
 
-function newItemModal(adder) {
-  const [open, setOpen] = createSignal(false);
-
-  return {
-    openModal() {
-      setOpen(true);
-    },
-    Modal() {
-      return (
-        <Portal>
-          <Show when={open()}>
-            <div class="absolute inset-0 flex justify-center w-screen h-screen bg-opacity-50 bg-black items-center">
-              <ItemForm
-                entity={{ name: "", img: "" }}
-                onSubmit={(values) => {
-                  setOpen(false);
-                  adder(values);
-                }}
-                onDelete={() => undefined}
-              />
-            </div>
-          </Show>
-        </Portal>
-      );
-    },
-  };
-}
-
-const ItemOverlay: VoidComponent<{ item: Item }> = (props) => {
   return (
-    <div
-      class="sortable w-20 h-20 bg-gray-200 bg-cover bg-center"
-      style={`background-image: url('${props.item.img}')`}
-    ></div>
+    <>
+      <button
+        class=" bg-gray-900 py-1 p-2 rounded-md text-xl text-white hover:bg-gray-700"
+        onclick={() => setModalOpen(true)}
+      >
+        Import
+      </button>
+      <Modal>
+        <div class="bg-black rounded-xl p-8 justify-center text-white">
+          <div class="flex flex-col gap-4 max-w-80">
+            <p>this doesn't actually restore the images yet</p>
+            <input type="file" onChange={handleChange} />
+            <button
+              class="bg-blue-800 p-1 rounded-m font-bold"
+              type="submit"
+              onClick={() => {
+                props.importer(JSON.parse(file()));
+                setModalOpen(false);
+              }}
+            >
+              Import
+            </button>
+            <button
+              class="bg-red-800 p-1 rounded-m font-bold"
+              onClick={() => setModalOpen(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 };
 
-const Group: VoidComponent<{
-  id: Id;
-  name: string;
-  color: string;
+const TierComponent = (props: {
+  tier: Tier;
   items: Item[];
-  editor: Function;
-  deletor: Function;
-  entities: Record<Id, Entity>;
-}> = (props) => {
-  const sortable = createSortable(props.id, { type: "group" });
-  const sortedItemIds = () => props.items.map((item) => item.id);
-  const { Modal, openModal } = createModal(
-    props.entities,
-    props.id,
-    props.editor,
-    props.deletor,
-  );
+  state: State;
+  setState: SetStoreFunction<State>;
+}) => {
+  const sortable = createSortable(props.tier.id, props.tier);
+  const { Modal, setModalOpen } = createModal();
 
   return (
     <>
@@ -156,289 +128,321 @@ const Group: VoidComponent<{
         ref={sortable.ref}
         style={maybeTransformStyle(sortable.transform)}
         classList={{ "opacity-50": sortable.isActiveDraggable }}
-        class="flex border-black border-b-4 box-content"
+        class="sortable flex border-black border-b-4 box-border"
       >
         <div
-          class="group w-20 h-full min-h-20 flex flex-shrink-0 box-content relative cursor-grab"
           {...sortable.dragActivators}
-          style={`background-color: ${props.color}`}
+          class="group w-20 h-full min-h-20 flex flex-shrink-0 box-border relative cursor-grab border-8 border-opacity-40 border-black"
+          style={`background-color: ${props.tier.color}`}
         >
-          <p class="text-center text-wrap text-xl justify-center align-middle m-auto font-bold">
-            {props.name}
+          <p class="text-center text-md justify-center align-middle m-auto font-bold text-wrap">
+            {props.tier.name}
           </p>
           <button
-            class="hidden group-hover:block absolute top-1 right-1 w-5 h-5 bg-gray-900 rounded-md bg-opacity-50 leading-[0.75rem]"
-            onclick={openModal}
+            class="hidden group-hover:block absolute bottom-1 right-1 w-5 h-5"
+            onClick={() => setModalOpen(true)}
           >
-            e
+            <FaSolidPen color="white" />
           </button>
         </div>
         <div class="bg-gray-900 flex flex-wrap w-full">
-          <SortableProvider ids={sortedItemIds()}>
+          <SortableProvider ids={props.items.map((item) => item.id)}>
             <For each={props.items}>
               {(item) => (
-                <ListItem id={item.id} item={item} group={item.group} />
+                <ItemComponent
+                  item={item}
+                  state={props.state}
+                  setState={props.setState}
+                />
               )}
             </For>
           </SortableProvider>
         </div>
       </div>
-      <Modal />
+      <Modal>
+        <TierForm
+          tier={props.tier}
+          onSubmit={(data: Tier) => {
+            props.setState(
+              "tiers",
+              (tiers) => tiers.id == props.tier.id,
+              produce((tier: Tier) => {
+                tier.name = data.name;
+                tier.color = data.color;
+              }),
+            );
+            setModalOpen(false);
+          }}
+          onDelete={() =>
+            props.setState(
+              "tiers",
+              props.state.tiers.filter(
+                (tier: Tier) => tier.id !== props.tier.id,
+              ),
+            )
+          }
+        />
+      </Modal>
     </>
   );
 };
 
-const Holding: VoidComponent<{
-  id: Id;
-  name: string;
-  color: string;
-  items: Item[];
-  adder: Function;
-}> = (props) => {
-  const sortable = createSortable(props.id, { type: "group" });
-  const sortedItemIds = () => props.items.map((item) => item.id);
-  const { Modal, openModal } = newItemModal(props.adder);
+const TierOverlay = (props: { tier: Tier; items: Item[] }) => {
+  return (
+    <>
+      <div class="flex border-black border-4 box-content w-full">
+        <div
+          class="group w-20 h-full min-h-20 flex flex-shrink-0 box-border relative cursor-grab border-8 border-opacity-40 border-black"
+          style={`background-color: ${props.tier.color}`}
+        >
+          <p class="text-center text-wrap text-xl justify-center align-middle m-auto font-bold">
+            {props.tier.name}
+          </p>
+        </div>
+        <div class="bg-gray-900 flex flex-wrap w-full">
+          <For each={props.items}>{(item) => <ItemOverlay item={item} />}</For>
+        </div>
+      </div>
+    </>
+  );
+};
+
+const ItemComponent = (props: {
+  item: Item;
+  state: State;
+  setState: SetStoreFunction<State>;
+}) => {
+  const sortable = createSortable(props.item.id, props.item);
+  const { Modal, setModalOpen } = createModal();
 
   return (
-    <div
-      ref={sortable.ref}
-      style={maybeTransformStyle(sortable.transform)}
-      class="flex border-black box-content mt-16 border-8"
-    >
-      <div class="bg-gray-900 flex flex-wrap w-full min-h-20">
-        <SortableProvider ids={sortedItemIds()}>
-          <For each={props.items}>
-            {(item) => (
-              <ListItem
-                id={item.id}
-                item={{ name: item.name, img: item.img }}
-                group={item.group}
-              />
-            )}
-          </For>
-        </SortableProvider>
-        <button class="w-14 h-14 m-3 bg-green-500" onClick={openModal}>
-          +
+    <>
+      <div
+        use:sortable
+        classList={{ "opacity-50": sortable.isActiveDraggable }}
+        class="w-20 h-20 bg-cover bg-center cursor-grab relative group bg-gray-300"
+        style={`background-image: url('${props.item.image_url}')`}
+        use:tippy={{
+          props: {
+            content: props.item.name,
+            duration: 0,
+            offset: [0, -10],
+          },
+          hidden: true,
+          disabled: props.item.name.length === 0,
+        }}
+      >
+        <button
+          class="hidden group-hover:block absolute bottom-1 right-1 w-5 h-5"
+          onClick={() => setModalOpen(true)}
+        >
+          <FaSolidPen color="white" />
         </button>
       </div>
-      <Modal />
-    </div>
+      <Modal>
+        <ItemForm
+          item={props.item}
+          onSubmit={(data: Item) => {
+            props.setState(
+              "items",
+              (items) => items.id == props.item.id,
+              produce((item: Item) => {
+                item.name = data.name;
+                item.image_url = data.image_url;
+              }),
+            );
+            setModalOpen(false);
+          }}
+          onDelete={() =>
+            props.setState(
+              "items",
+              props.state.items.filter(
+                (item: Item) => item.id !== props.item.id,
+              ),
+            )
+          }
+        />
+      </Modal>
+    </>
   );
 };
 
-const GroupOverlay: VoidComponent<{
-  name: string;
-  color: string;
-  items: Item[];
-}> = (props) => {
+const ItemOverlay = (props: { item: Item }) => {
   return (
-    <div class="flex border-black border-4 box-content">
+    <>
       <div
-        class="group w-20 h-full min-h-20 flex flex-shrink-0 box-content relative cursor-grab"
-        style={`background-color: ${props.color}`}
-      >
-        <p class="text-center text-wrap text-xl justify-center align-middle m-auto font-bold">
-          {props.name}
-        </p>
-      </div>
-      <div class="bg-gray-900 flex w-full">
-        <For each={props.items}>{(item) => <ItemOverlay item={item} />}</For>
-      </div>
-    </div>
+        class="w-20 h-20 bg-cover bg-center cursor-grab bg-gray-300"
+        style={`background-image: url('${props.item.image_url}')`}
+      ></div>
+    </>
   );
 };
 
-type TierListItem = { name: string; img: string };
+const UnsortedContainer = (props: {
+  items: Item[];
+  state: State;
+  setState: SetStoreFunction<State>;
+  onNewItem: Function;
+}) => {
+  const sortable = createSortable(UNSORTED_ID, { type: "tier" });
+  const { Modal, setModalOpen } = createModal();
 
-const ListItem: VoidComponent<{
-  id: Id;
-  item: TierListItem;
-  group: Id;
-}> = (props) => {
-  const sortable = createSortable(props.id, {
-    type: "item",
-    group: props.group,
-  });
   return (
-    <div
-      ref={sortable}
-      classList={{ "opacity-25": sortable.isActiveDraggable }}
-      class="sortable w-20 h-20 bg-cover bg-center cursor-grab"
-      style={`background-image: url('${props.item.img}')`}
-      use:tippy={{
-        props: {
-          content: props.item.name,
-          duration: 0,
-          offset: [0, -10],
-        },
-        hidden: true,
-      }}
-    ></div>
+    <>
+      <div
+        ref={sortable.ref}
+        class="flex border-black box-content mt-8 border-8"
+      >
+        <div class="bg-gray-900 flex flex-wrap w-full min-h-20">
+          <SortableProvider ids={props.items.map((item) => item.id)}>
+            <For each={props.items}>
+              {(item) => (
+                <ItemComponent
+                  item={item}
+                  state={props.state}
+                  setState={props.setState}
+                />
+              )}
+            </For>
+          </SortableProvider>
+          <button class="h-20 w-20" onClick={() => setModalOpen(true)}>
+            <FiPlusSquare
+              color="white"
+              size={40}
+              class="m-auto hover:text-green-400"
+            />
+          </button>
+        </div>
+      </div>
+      <Modal>
+        <ItemForm
+          item={null}
+          onSubmit={(data: Item) => {
+            props.onNewItem(data.name, data.image_url);
+            setModalOpen(false);
+          }}
+          onDelete={() => setModalOpen(false)}
+          deleteText="Cancel"
+        />
+      </Modal>
+    </>
   );
+};
+
+const NewTierButton = (props: { onNewTier: Function }) => {
+  const { Modal, setModalOpen } = createModal();
+
+  return (
+    <>
+      <button class="h-16 w-24" onClick={() => setModalOpen(true)}>
+        <FiPlusSquare
+          color="white"
+          size={40}
+          class="m-auto hover:text-green-400"
+        />
+      </button>
+      <Modal>
+        <TierForm
+          tier={null}
+          onSubmit={(data: Tier) => {
+            props.onNewTier(data.name, data.color);
+            setModalOpen(false);
+          }}
+          onDelete={() => setModalOpen(false)}
+          deleteText="Cancel"
+        />
+      </Modal>
+    </>
+  );
+};
+
+const createModal = () => {
+  const [open, setModalOpen] = createSignal(false);
+
+  return {
+    setModalOpen,
+    Modal(props: any) {
+      return (
+        <Portal>
+          <Show when={open()}>
+            <div class="absolute inset-0 flex justify-center w-screen h-screen bg-opacity-50 bg-black items-center">
+              {props.children}
+            </div>
+          </Show>
+        </Portal>
+      );
+    },
+  };
 };
 
 export const TierList = () => {
-  const [entities, setEntities] = createStore<Record<Id, Entity>>({});
+  const [state, setState] = createStore<State>({
+    tiers: [],
+    items: [],
+  });
 
-  let nextOrder = 0;
+  const ORDER_DELTA = 1000;
 
   const getNextOrder = () => {
     nextOrder += ORDER_DELTA;
     return nextOrder.toString();
   };
 
-  var index = 0;
-
-  const addGroup = (name: string, color?: string) => {
-    setEntities(index, {
-      id: index,
-      name,
-      color: color,
-      type: "group",
-      order: getNextOrder(),
-    });
-    index += 1;
+  const getNextId = () => {
+    nextId += 1;
+    return nextId;
   };
 
-  const addItem = (item: TierListItem) => {
-    setEntities(index, {
-      id: index,
-      name: item.name,
-      img: item.img,
-      group: 0,
+  const sortByOrder = (entities: Tier[] | Item[]) => {
+    const sorted = entities.map((x: Tier | Item) => ({
+      order: new Big(x.order),
+      x,
+    }));
+    sorted.sort((a, b) => a.order.cmp(b.order));
+    return sorted.map((entry) => entry.x);
+  };
+
+  const newTier = (name: string, color: string) => {
+    setState("tiers", state.tiers.length, {
+      id: getNextId(),
+      name,
+      color,
+      type: "tier",
+      order: getNextOrder(),
+    });
+  };
+
+  const newItem = (name: string, image_url: string) => {
+    setState("items", state.items.length, {
+      id: getNextId(),
+      name,
+      image_url,
+      tier: 1,
       type: "item",
       order: getNextOrder(),
     });
-    index += 1;
   };
 
-  const setup = () => {
+  onMount(() => {
     batch(() => {
-      addGroup("holding");
-      addGroup("S", "#f24722");
-      addGroup("A", "#fea629");
-      addGroup("B", "#ffcd2a");
-      addGroup("C", "#13ae5c");
-      addGroup("D", "#0b99ff");
-      addGroup("E", "#9747ff");
-      addGroup("F", "#fb47ff");
-      addItem({ name: "Grass", img: "https://picsum.photos/200/300?random=1" });
-      addItem({
-        name: "not grass",
-        img: "https://picsum.photos/200/300?random=2",
-      });
-      addItem({
-        name: "some name",
-        img: "https://picsum.photos/200/300?random=3",
-      });
-      addItem({
-        name: "idol #1",
-        img: "https://picsum.photos/200/300?random=4",
-      });
-      addItem({
-        name: "idol #2",
-        img: "https://picsum.photos/200/300?random=5",
-      });
-      addItem({
-        name: "building",
-        img: "https://picsum.photos/200/300?random=6",
-      });
-      addItem({ name: "idk", img: "https://picsum.photos/200/300?random=7" });
-      addItem({
-        name: "i cant think of any more",
-        img: "https://picsum.photos/200/300?random=9",
-      });
-      addItem({
-        name: "i cant think of any more",
-        img: "https://picsum.photos/200/300?random=10",
-      });
-      addItem({
-        name: "cool name here",
-        img: "https://picsum.photos/200/300?random=11",
-      });
-      addItem({
-        name: "cool name here",
-        img: "https://picsum.photos/200/300?random=12",
-      });
-      addItem({
-        name: "cool name here",
-        img: "https://picsum.photos/200/300?random=13",
-      });
+      initUnsorted();
+      newTier("S", "#ff7f7e");
+      newTier("A", "#ffbf7d");
+      newTier("B", "#fefe82");
+      newTier("C", "#7dff7e");
+      newTier("D", "#7fbfff");
+      newTier("F", "#fe80fd");
     });
-  };
+  });
 
-  onMount(setup);
-
-  const groups = () =>
-    sortByOrder(
-      Object.values(entities).filter((item) => item.type === "group"),
-    ) as Group[];
-
-  const groupIds = () => groups().map((group) => group.id);
-
-  const groupOrders = () => groups().map((group) => group.order);
-
-  const groupItems = (groupId: Id) =>
-    sortByOrder(
-      Object.values(entities).filter(
-        (entity) => entity.type === "item" && entity.group === groupId,
-      ),
-    ) as Item[];
-
-  const groupItemIds = (groupId: Id) =>
-    groupItems(groupId).map((item) => item.id);
-
-  const groupItemOrders = (groupId: Id) =>
-    groupItems(groupId).map((item) => item.order);
-
-  const isSortableGroup = (sortable: Draggable | Droppable) =>
-    sortable.data.type === "group";
-
-  const closestEntity: CollisionDetector = (draggable, droppables, context) => {
-    const closestGroup = closestCenter(
-      draggable,
-      droppables.filter((droppable) => isSortableGroup(droppable)),
-      context,
-    );
-    if (isSortableGroup(draggable)) {
-      return closestGroup;
-    } else if (closestGroup) {
-      const closestItem = closestCenter(
-        draggable,
-        droppables.filter(
-          (droppable) =>
-            !isSortableGroup(droppable) &&
-            droppable.data.group === closestGroup.id,
-        ),
-        context,
-      );
-
-      if (!closestItem) {
-        return closestGroup;
-      }
-
-      const changingGroup = draggable.data.group !== closestGroup.id;
-      if (changingGroup) {
-        const belowLastItem =
-          groupItemIds(closestGroup.id).at(-1) === closestItem.id &&
-          draggable.transformed.center.x > closestItem.transformed.center.x;
-
-        if (belowLastItem) return closestGroup;
-      }
-
-      return closestItem;
-    }
-  };
-
-  const edit = (id: Id, data: { name: string; color: string }) => {
-    setEntities(id, {
-      name: data.name,
-      color: data.color,
+  const initUnsorted = () => {
+    setState("tiers", state.tiers.length, {
+      id: UNSORTED_ID,
+      name: "Unsorted",
+      color: "#000000",
+      type: "tier",
+      order: Number.MAX_SAFE_INTEGER.toString(),
     });
-  };
-
-  const deleteEntity = (id: Id) => {
-    setEntities(id, undefined);
   };
 
   const move = (
@@ -448,35 +452,42 @@ export const TierList = () => {
   ) => {
     if (!draggable || !droppable) return;
 
-    const draggableIsGroup = isSortableGroup(draggable);
-    const droppableIsGroup = isSortableGroup(droppable);
+    const draggableIsTier = draggable.data.type === "tier";
+    const droppableIsTier = droppable.data.type === "tier";
 
-    const draggableGroupId = draggableIsGroup
+    const draggableTierId = draggableIsTier
       ? draggable.id
-      : draggable.data.group;
+      : draggable.data.tier;
 
-    const droppableGroupId = droppableIsGroup
+    const droppableTierId = droppableIsTier
       ? droppable.id
-      : droppable.data.group;
+      : droppable.data.tier;
 
     if (
       onlyWhenChangingGroup &&
-      (draggableIsGroup || draggableGroupId === droppableGroupId)
+      (draggableIsTier || draggableTierId === droppableTierId)
     ) {
       return;
     }
 
-    let ids: Id[], orders: string[], order: Big;
+    const tiers = sortByOrder(state.tiers) as Tier[];
+    const items = sortByOrder(state.items) as Item[];
 
-    if (draggableIsGroup) {
-      ids = groupIds();
-      orders = groupOrders();
-    } else {
-      ids = groupItemIds(droppableGroupId);
-      orders = groupItemOrders(droppableGroupId);
-    }
+    let ids = draggableIsTier
+      ? tiers.map((tier) => tier.id)
+      : items
+          .filter((item) => item.tier == droppableTierId)
+          .map((item) => item.id);
 
-    if (droppableIsGroup && !draggableIsGroup) {
+    let orders = draggableIsTier
+      ? tiers.map((tier) => tier.order)
+      : items
+          .filter((item) => item.tier == droppableTierId)
+          .map((item) => item.order);
+
+    let order: Big;
+
+    if (droppableIsTier && !draggableIsTier) {
       order = new Big(orders.at(-1) ?? -ORDER_DELTA).plus(ORDER_DELTA).round();
     } else {
       const draggableIndex = ids.indexOf(draggable.id);
@@ -506,11 +517,72 @@ export const TierList = () => {
     }
 
     if (order !== undefined) {
-      setEntities(draggable.id, (entity) => ({
-        ...entity,
-        order: order.toString(),
-        group: droppableGroupId,
-      }));
+      if (draggableIsTier) {
+        setState(
+          "tiers",
+          (tier) => tier.id === draggable.id,
+          produce((x: Tier) => {
+            x.order = order.toString();
+          }),
+        );
+      } else {
+        setState(
+          "items",
+          (item) => item.id === draggable.id,
+          produce((x: Item) => {
+            x.order = order.toString();
+            x.tier = droppableTierId;
+          }),
+        );
+      }
+    }
+  };
+
+  const closestEntity: CollisionDetector = (draggable, droppables, context) => {
+    if (draggable.data.type === "tier") {
+      return closestCenter(
+        draggable,
+        droppables.filter(
+          (droppable) =>
+            droppable.data.type === "tier" && droppable.id !== UNSORTED_ID,
+        ),
+        context,
+      );
+    } else {
+      const closestTier = closestCenter(
+        draggable,
+        droppables.filter((droppable) => droppable.data.type === "tier"),
+        context,
+      );
+
+      const closestItem = closestCenter(
+        draggable,
+        droppables.filter(
+          (droppable) =>
+            droppable.data.type !== "group" &&
+            droppable.data.tier === closestTier.id,
+        ),
+        context,
+      );
+
+      if (!closestItem) {
+        return closestTier;
+      }
+
+      const changingTier = draggable.data.tier !== closestTier.id;
+      if (changingTier) {
+        const items = sortByOrder(state.items) as Item[];
+        const afterLastItem =
+          items
+            .filter((item) => item.tier == closestTier.id)
+            .map((item) => item.id)
+            .at(-1) === closestItem.id &&
+          draggable.transformed.center.x > closestItem.transformed.center.x;
+
+        if (afterLastItem) return closestTier;
+      }
+
+      return closestItem;
     }
   };
 
@@ -520,67 +592,134 @@ export const TierList = () => {
   const onDragEnd: DragEventHandler = ({ draggable, droppable }) =>
     move(draggable, droppable, false);
 
+  const screenshot = () => {
+    var node = document.getElementById("tierlist");
 
+    htmlToImage
+      .toPng(node, { pixelRatio: 1, skipAutoScale: true })
+      .then(function (dataUrl) {
+        download(dataUrl, "tierlist.png");
+      })
+      .catch(function (error) {
+        console.error("oops, something went wrong!", error);
+      });
+  };
+
+  const exportData = () => {
+    let data = unwrap(state);
+    let exportedData = {
+      tiers: data.tiers.filter((tier) => tier.id !== UNSORTED_ID),
+      items: data.items,
+    };
+    download(JSON.stringify(exportedData), "tierlist_export.json");
+  };
+
+  const importData = (data) => {
+    batch(() => {
+      setState("tiers", []);
+      setState("items", []);
+      initUnsorted();
+      setState("tiers", reconcile([...data.tiers]));
+      setState("items", reconcile([...data.items]));
+    });
+  };
+
+  window.onbeforeunload = function () {
+    if (state.items.length > 0) {
+      return "unsaved changes!";
+    }
+  };
 
   return (
     <div class="flex flex-col flex-1 self-stretch max-w-[656px] m-auto">
-      <h1 class="text-4xl text-white m-auto my-8">create a tierlist</h1>
+      <h1 class="text-4xl text-white m-auto my-8">Tierlist Maker</h1>
       <DragDropProvider
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
         collisionDetector={closestEntity}
       >
         <DragDropSensors />
-        <SortableProvider ids={groupIds()}>
+
+        <SortableProvider ids={sortByOrder(state.tiers).map((tier) => tier.id)}>
           <div
             id="tierlist"
             class="grid grid-flow-row border-8 border-b-4 border-black"
           >
-            <For each={groups().filter((g) => g.id != 0)}>
-              {(group) => (
-                <Group
-                  id={group.id}
-                  name={group.name}
-                  color={group.color}
-                  items={groupItems(group.id)}
-                  editor={edit}
-                  entities={entities}
-                  deletor={deleteEntity}
+            <For
+              each={
+                sortByOrder(state.tiers).filter(
+                  (tier) => tier.id !== UNSORTED_ID,
+                ) as Tier[]
+              }
+            >
+              {(tier) => (
+                <TierComponent
+                  tier={tier}
+                  items={(sortByOrder(state.items) as Item[]).filter(
+                    (item) => item.tier == tier.id,
+                  )}
+                  state={state}
+                  setState={setState}
                 />
               )}
             </For>
           </div>
-          <Holding
-            id={0}
-            name={"holding"}
-            color={undefined}
-            items={groupItems(0)}
-            adder={addItem}
+          <NewTierButton onNewTier={newTier} />
+          <UnsortedContainer
+            items={(sortByOrder(state.items) as Item[]).filter(
+              (item) => item.tier === UNSORTED_ID,
+            )}
+            state={state}
+            setState={setState}
+            onNewItem={newItem}
           />
         </SortableProvider>
 
         <DragOverlay>
           {(draggable) => {
-            const entity = entities[draggable.id];
-            return isSortableGroup(draggable) ? (
-              <GroupOverlay
-                name={entity.name}
-                color={entity.color}
-                items={groupItems(entity.id)}
+            return draggable.data.type === "tier" ? (
+              <TierOverlay
+                tier={state.tiers.find((tier) => tier.id === draggable.id)}
+                items={state.items.filter((item) => item.tier == draggable.id)}
               />
             ) : (
-              <ItemOverlay item={entity as Item} />
+              <ItemOverlay
+                item={state.items.find((tier) => tier.id === draggable.id)}
+              />
             );
           }}
         </DragOverlay>
       </DragDropProvider>
 
-      <button
-        class=" bg-gray-900 py-1 px-2 rounded-md text-xl text-white m-auto my-8 hover:bg-gray-700"
-        onclick={screenshot}
-      >
-        Download image
-      </button>
+      <div class="flex justify-center my-8 gap-4">
+        <button
+          class=" bg-gray-900 py-1 p-2 rounded-md text-xl text-white hover:bg-gray-700"
+          onclick={() =>
+            setState(
+              "items",
+              (_) => true,
+              produce((item: Item) => {
+                item.tier = UNSORTED_ID;
+              }),
+            )
+          }
+        >
+          Unsort items
+        </button>
+        <button
+          class=" bg-gray-900 py-1 p-2 rounded-md text-xl text-white hover:bg-gray-700"
+          onclick={screenshot}
+        >
+          Download image
+        </button>
+        <button
+          class=" bg-gray-900 py-1 p-2 rounded-md text-xl text-white hover:bg-gray-700"
+          onclick={exportData}
+        >
+          Export
+        </button>
+        <ImportButton importer={importData} />
+      </div>
     </div>
   );
 };
