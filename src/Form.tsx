@@ -1,7 +1,7 @@
 import { createSignal, Show, VoidComponent } from "solid-js";
 import { Tier, Item } from "./Tierlist";
 import Cropper from "solid-easy-crop";
-import "./styles.css";
+import "./easy-crop-style.css";
 
 export const TierForm: VoidComponent<{
   tier: Tier | null;
