@@ -1,11 +1,9 @@
-import { type Component } from 'solid-js';
-import { TierList } from './Tierlist';
+import { type Component } from "solid-js";
+import { TierList } from "./TierListNew";
 
 const App: Component = () => {
   return (
-    <div class="w-screen h-screen bg-gray-800">
-      <TierList />
-    </div>
+    <TierList />
   );
 };
 
