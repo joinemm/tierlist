@@ -13,7 +13,7 @@ import {
   maybeTransformStyle,
 } from "@thisbeyond/solid-dnd";
 import Big from "big.js";
-import { batch, onMount, For, createSignal, Show } from "solid-js";
+import { batch, onMount, For, createSignal, Show, JSX } from "solid-js";
 import {
   createStore,
   produce,
@@ -25,9 +25,14 @@ import download from "downloadjs";
 import { tippy, TippyOptions } from "solid-tippy";
 import { Portal } from "solid-js/web";
 import { TierForm, ItemForm } from "./Form";
-import { FaSolidPen } from "solid-icons/fa";
 import { FiPlusSquare } from "solid-icons/fi";
 import { unwrap } from "solid-js/store";
+import { createUniqueId } from "solid-js";
+import { RiMediaImageAddFill } from "solid-icons/ri";
+import { BiSolidEdit } from "solid-icons/bi";
+import { ImUndo2 } from "solid-icons/im";
+import { TbDownload, TbFileDownload, TbFileUpload } from "solid-icons/tb";
+import { IconTypes } from "solid-icons";
 tippy;
 
 export type Tier = {
@@ -61,9 +66,30 @@ declare module "solid-js" {
   }
 }
 
-const UNSORTED_ID = 1;
-let nextOrder = 0;
-let nextId = 1;
+const UNSORTED_ID = "unsorted";
+
+const SideButton = (props: {
+  onClick: JSX.EventHandlerUnion<HTMLButtonElement, MouseEvent>;
+  icon: IconTypes;
+  title: string;
+}) => {
+  return (
+    <button
+      class="bg-gray-900 rounded-md hover:bg-gray-700 w-12 h-12 text-white"
+      onClick={props.onClick}
+      use:tippy={{
+        props: {
+          content: props.title,
+          duration: 0,
+          placement: "right",
+        },
+        hidden: true,
+      }}
+    >
+      <props.icon size={30} class="m-auto" />
+    </button>
+  );
+};
 
 const ImportButton = (props: { importer: Function }) => {
   const { Modal, setModalOpen } = createModal();
@@ -79,12 +105,11 @@ const ImportButton = (props: { importer: Function }) => {
 
   return (
     <>
-      <button
-        class=" bg-gray-900 py-1 p-2 rounded-md text-xl text-white hover:bg-gray-700"
-        onclick={() => setModalOpen(true)}
-      >
-        Import
-      </button>
+      <SideButton
+        title="Import"
+        icon={TbFileDownload}
+        onClick={() => setModalOpen(true)}
+      />
       <Modal>
         <div class="bg-black rounded-xl p-8 justify-center text-white">
           <div class="flex flex-col gap-4 max-w-80">
@@ -128,24 +153,25 @@ const TierComponent = (props: {
         ref={sortable.ref}
         style={maybeTransformStyle(sortable.transform)}
         classList={{ "opacity-50": sortable.isActiveDraggable }}
-        class="sortable flex border-black border-b-4 box-border"
+        class="sortable flex"
       >
         <div
           {...sortable.dragActivators}
-          class="group w-20 h-full min-h-20 flex flex-shrink-0 box-border relative cursor-grab border-8 border-opacity-40 border-black"
+          class="group w-24 h-full min-h-24 flex flex-shrink-0 relative cursor-grab border-black border-[1px] box-border"
           style={`background-color: ${props.tier.color}`}
+          onDblClick={() => setModalOpen(true)}
         >
-          <p class="text-center text-md justify-center align-middle m-auto font-bold text-wrap">
+          <p class="text-center text-md justify-center align-middle m-auto text-wrap font-bold select-none">
             {props.tier.name}
           </p>
           <button
-            class="hidden group-hover:block absolute bottom-1 right-1 w-5 h-5"
+            class="hidden group-hover:block absolute bottom-1 left-1"
             onClick={() => setModalOpen(true)}
           >
-            <FaSolidPen color="white" />
+            <BiSolidEdit color="white" size={25} />
           </button>
         </div>
-        <div class="bg-gray-900 flex flex-wrap w-full">
+        <div class="bg-gray-900 flex flex-wrap w-full outline outline-2 ">
           <SortableProvider ids={props.items.map((item) => item.id)}>
             <For each={props.items}>
               {(item) => (
@@ -174,12 +200,24 @@ const TierComponent = (props: {
             setModalOpen(false);
           }}
           onDelete={() =>
-            props.setState(
-              "tiers",
-              props.state.tiers.filter(
-                (tier: Tier) => tier.id !== props.tier.id,
-              ),
-            )
+            batch(() => {
+              props.setState(
+                "tiers",
+                props.state.tiers.filter(
+                  (tier: Tier) => tier.id !== props.tier.id,
+                ),
+              );
+              props.setState(
+                "items",
+                props.state.items.map((item: Item) => {
+                  if (item.tier === props.tier.id) {
+                    return { ...item, tier: UNSORTED_ID };
+                  } else {
+                    return item;
+                  }
+                }),
+              );
+            })
           }
         />
       </Modal>
@@ -190,12 +228,12 @@ const TierComponent = (props: {
 const TierOverlay = (props: { tier: Tier; items: Item[] }) => {
   return (
     <>
-      <div class="flex border-black border-4 box-content w-full">
+      <div class="flex box-content w-full border-black border-[1px]">
         <div
-          class="group w-20 h-full min-h-20 flex flex-shrink-0 box-border relative cursor-grab border-8 border-opacity-40 border-black"
+          class="w-24 h-full min-h-24 flex flex-shrink-0 relative cursor-grabbing border-black border-[1px]"
           style={`background-color: ${props.tier.color}`}
         >
-          <p class="text-center text-wrap text-xl justify-center align-middle m-auto font-bold">
+          <p class="text-center text-wrap text-md justify-center align-middle m-auto font-bold">
             {props.tier.name}
           </p>
         </div>
@@ -220,7 +258,7 @@ const ItemComponent = (props: {
       <div
         use:sortable
         classList={{ "opacity-50": sortable.isActiveDraggable }}
-        class="w-20 h-20 bg-cover bg-center cursor-grab relative group bg-gray-300"
+        class="w-24 h-24 bg-cover bg-center cursor-grab relative group bg-gray-300 border-black border-[1px]"
         style={`background-image: url('${props.item.image_url}')`}
         use:tippy={{
           props: {
@@ -231,12 +269,13 @@ const ItemComponent = (props: {
           hidden: true,
           disabled: props.item.name.length === 0,
         }}
+        onDblClick={() => setModalOpen(true)}
       >
         <button
-          class="hidden group-hover:block absolute bottom-1 right-1 w-5 h-5"
+          class="hidden group-hover:block absolute bottom-1 left-1"
           onClick={() => setModalOpen(true)}
         >
-          <FaSolidPen color="white" />
+          <BiSolidEdit color="white" size={25} />
         </button>
       </div>
       <Modal>
@@ -271,7 +310,7 @@ const ItemOverlay = (props: { item: Item }) => {
   return (
     <>
       <div
-        class="w-20 h-20 bg-cover bg-center cursor-grab bg-gray-300"
+        class="w-24 h-24 bg-cover bg-center cursor-grabbing bg-gray-300 border-black border-[1px]"
         style={`background-image: url('${props.item.image_url}')`}
       ></div>
     </>
@@ -291,9 +330,12 @@ const UnsortedContainer = (props: {
     <>
       <div
         ref={sortable.ref}
-        class="flex border-black box-content mt-8 border-8"
+        class="outline-8 outline-black outline bg-gray-900 w-[12rem]"
+        classList={{
+          "w-[18rem]": props.items.length >= 2 * (props.state.tiers.length - 1),
+        }}
       >
-        <div class="bg-gray-900 flex flex-wrap w-full min-h-20">
+        <div class="flex flex-wrap w-full">
           <SortableProvider ids={props.items.map((item) => item.id)}>
             <For each={props.items}>
               {(item) => (
@@ -305,12 +347,11 @@ const UnsortedContainer = (props: {
               )}
             </For>
           </SortableProvider>
-          <button class="h-20 w-20" onClick={() => setModalOpen(true)}>
-            <FiPlusSquare
-              color="white"
-              size={40}
-              class="m-auto hover:text-green-400"
-            />
+          <button
+            class="h-24 w-24 text-white hover:text-green-400"
+            onClick={() => setModalOpen(true)}
+          >
+            <RiMediaImageAddFill size={40} class="m-auto" />
           </button>
         </div>
       </div>
@@ -334,12 +375,11 @@ const NewTierButton = (props: { onNewTier: Function }) => {
 
   return (
     <>
-      <button class="h-16 w-24" onClick={() => setModalOpen(true)}>
-        <FiPlusSquare
-          color="white"
-          size={40}
-          class="m-auto hover:text-green-400"
-        />
+      <button
+        class="h-20 w-28 text-white absolute hover:text-green-400"
+        onClick={() => setModalOpen(true)}
+      >
+        <FiPlusSquare size={40} class="m-auto" />
       </button>
       <Modal>
         <TierForm
@@ -382,15 +422,11 @@ export const TierList = () => {
   });
 
   const ORDER_DELTA = 1000;
+  let nextOrder = 0;
 
   const getNextOrder = () => {
     nextOrder += ORDER_DELTA;
     return nextOrder.toString();
-  };
-
-  const getNextId = () => {
-    nextId += 1;
-    return nextId;
   };
 
   const sortByOrder = (entities: Tier[] | Item[]) => {
@@ -402,22 +438,24 @@ export const TierList = () => {
     return sorted.map((entry) => entry.x);
   };
 
-  const newTier = (name: string, color: string) => {
+  const newTier = (name: string, color: string): Id => {
+    const id = createUniqueId();
     setState("tiers", state.tiers.length, {
-      id: getNextId(),
+      id: id,
       name,
       color,
       type: "tier",
       order: getNextOrder(),
     });
+    return id;
   };
 
-  const newItem = (name: string, image_url: string) => {
+  const newItem = (name: string, image_url: string, tier?: Id) => {
     setState("items", state.items.length, {
-      id: getNextId(),
+      id: createUniqueId(),
       name,
       image_url,
-      tier: 1,
+      tier: tier ?? UNSORTED_ID,
       type: "item",
       order: getNextOrder(),
     });
@@ -431,7 +469,6 @@ export const TierList = () => {
       newTier("B", "#fefe82");
       newTier("C", "#7dff7e");
       newTier("D", "#7fbfff");
-      newTier("F", "#fe80fd");
     });
   });
 
@@ -593,10 +630,23 @@ export const TierList = () => {
     move(draggable, droppable, false);
 
   const screenshot = () => {
-    var node = document.getElementById("tierlist");
+    const node = document.getElementById("screenshot");
+    const scale = 3;
+    const style = {
+      transform: "scale(" + scale + ")",
+      "transform-origin": "top left",
+      width: node.offsetWidth + "px",
+      height: node.offsetHeight + "px",
+    };
+
+    const param = {
+      height: node.offsetHeight * scale,
+      width: node.offsetWidth * scale,
+      style,
+    };
 
     htmlToImage
-      .toPng(node, { pixelRatio: 1, skipAutoScale: true })
+      .toPng(node, param)
       .then(function (dataUrl) {
         download(dataUrl, "tierlist.png");
       })
@@ -614,7 +664,7 @@ export const TierList = () => {
     download(JSON.stringify(exportedData), "tierlist_export.json");
   };
 
-  const importData = (data) => {
+  const importData = (data: State) => {
     batch(() => {
       setState("tiers", []);
       setState("items", []);
@@ -631,8 +681,8 @@ export const TierList = () => {
   };
 
   return (
-    <div class="flex flex-col flex-1 self-stretch max-w-[656px] m-auto">
-      <h1 class="text-4xl text-white m-auto my-8">Tierlist Maker</h1>
+    <div class="flex flex-col flex-1 self-stretch m-auto items-center max-w-screen-xl h-dvh">
+      <h1 class="text-4xl text-white my-8">Tierlist Maker</h1>
       <DragDropProvider
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
@@ -641,38 +691,69 @@ export const TierList = () => {
         <DragDropSensors />
 
         <SortableProvider ids={sortByOrder(state.tiers).map((tier) => tier.id)}>
-          <div
-            id="tierlist"
-            class="grid grid-flow-row border-8 border-b-4 border-black"
-          >
-            <For
-              each={
-                sortByOrder(state.tiers).filter(
-                  (tier) => tier.id !== UNSORTED_ID,
-                ) as Tier[]
-              }
-            >
-              {(tier) => (
-                <TierComponent
-                  tier={tier}
-                  items={(sortByOrder(state.items) as Item[]).filter(
-                    (item) => item.tier == tier.id,
-                  )}
-                  state={state}
-                  setState={setState}
-                />
+          <div class="flex gap-6 mb-16">
+            <UnsortedContainer
+              items={(sortByOrder(state.items) as Item[]).filter(
+                (item) => item.tier === UNSORTED_ID,
               )}
-            </For>
+              state={state}
+              setState={setState}
+              onNewItem={newItem}
+            />
+            <div>
+              <div
+                id="screenshot"
+                class="grid grid-flow-row outline-8 outline-black outline max-w-[48rem] min-w-[30rem] ml-2"
+              >
+                <For
+                  each={
+                    sortByOrder(state.tiers).filter(
+                      (tier) => tier.id !== UNSORTED_ID,
+                    ) as Tier[]
+                  }
+                >
+                  {(tier) => (
+                    <TierComponent
+                      tier={tier}
+                      items={(sortByOrder(state.items) as Item[]).filter(
+                        (item) => item.tier == tier.id,
+                      )}
+                      state={state}
+                      setState={setState}
+                    />
+                  )}
+                </For>
+              </div>
+              <NewTierButton onNewTier={newTier} />
+            </div>
+
+            <div class="flex-col flex gap-4 w-12">
+              <SideButton
+                title="Unsort all"
+                icon={ImUndo2}
+                onClick={() =>
+                  setState(
+                    "items",
+                    (_) => true,
+                    produce((item: Item) => {
+                      item.tier = UNSORTED_ID;
+                    }),
+                  )
+                }
+              />
+              <SideButton
+                title="Download"
+                icon={TbDownload}
+                onClick={screenshot}
+              />
+              <SideButton
+                title="Export"
+                icon={TbFileUpload}
+                onClick={exportData}
+              />
+              <ImportButton importer={importData} />
+            </div>
           </div>
-          <NewTierButton onNewTier={newTier} />
-          <UnsortedContainer
-            items={(sortByOrder(state.items) as Item[]).filter(
-              (item) => item.tier === UNSORTED_ID,
-            )}
-            state={state}
-            setState={setState}
-            onNewItem={newItem}
-          />
         </SortableProvider>
 
         <DragOverlay>
@@ -680,7 +761,9 @@ export const TierList = () => {
             return draggable.data.type === "tier" ? (
               <TierOverlay
                 tier={state.tiers.find((tier) => tier.id === draggable.id)}
-                items={state.items.filter((item) => item.tier == draggable.id)}
+                items={(sortByOrder(state.items) as Item[]).filter(
+                  (item) => item.tier == draggable.id,
+                )}
               />
             ) : (
               <ItemOverlay
@@ -690,36 +773,12 @@ export const TierList = () => {
           }}
         </DragOverlay>
       </DragDropProvider>
-
-      <div class="flex justify-center my-8 gap-4">
-        <button
-          class=" bg-gray-900 py-1 p-2 rounded-md text-xl text-white hover:bg-gray-700"
-          onclick={() =>
-            setState(
-              "items",
-              (_) => true,
-              produce((item: Item) => {
-                item.tier = UNSORTED_ID;
-              }),
-            )
-          }
-        >
-          Unsort items
-        </button>
-        <button
-          class=" bg-gray-900 py-1 p-2 rounded-md text-xl text-white hover:bg-gray-700"
-          onclick={screenshot}
-        >
-          Download image
-        </button>
-        <button
-          class=" bg-gray-900 py-1 p-2 rounded-md text-xl text-white hover:bg-gray-700"
-          onclick={exportData}
-        >
-          Export
-        </button>
-        <ImportButton importer={importData} />
-      </div>
+      <footer class="mt-auto text-white mb-4 font-mono">
+        © 2025 Joinemm -{" "}
+        <a class="underline" href="https://github.com/joinemm/tierlist">
+          Source code
+        </a>
+      </footer>
     </div>
   );
 };

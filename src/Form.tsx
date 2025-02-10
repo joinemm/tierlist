@@ -1,6 +1,6 @@
 import { createSignal, Show, VoidComponent } from "solid-js";
 import { Tier, Item } from "./Tierlist";
-import Cropper from "solid-easy-crop";
+import Cropper, { Area, Point } from "solid-easy-crop";
 import "./easy-crop-style.css";
 
 export const TierForm: VoidComponent<{
@@ -10,10 +10,10 @@ export const TierForm: VoidComponent<{
   deleteText?: string;
 }> = (props) => {
   const [name, setName] = createSignal(
-    props.tier != null ? props.tier.name : "",
+    props.tier != null ? props.tier.name : "New Tier",
   );
   const [color, setColor] = createSignal(
-    props.tier != null ? props.tier.color : "",
+    props.tier != null ? props.tier.color : "#ffffff",
   );
 
   const handleSubmit = () => {
@@ -23,28 +23,28 @@ export const TierForm: VoidComponent<{
   return (
     <div class="bg-black rounded-xl p-8 justify-center text-white">
       <div class="flex flex-col gap-4">
-        <label>Name</label>
+        <label>Tier label</label>
         <input
-          value={props.tier ? props.tier.name : ""}
-          class="bg-gray-900 rounded-s p-1"
+          value={name()}
+          class="bg-gray-900 rounded-sm p-1"
           onChange={(e) => setName(e.target.value)}
         />
-        <label>Color</label>
+        <label>Background color</label>
         <input
           type="color"
-          value={props.tier ? props.tier.color : ""}
-          class="bg-gray-900 rounded-s p-1"
+          value={color()}
+          class="w-full rounded-md border-white border-2 h-10"
           onChange={(e) => setColor(e.target.value)}
         />
         <button
-          class="bg-green-800 p-1 rounded-m font-bold"
+          class="bg-green-800 p-1 rounded-sm font-bold"
           type="submit"
           onClick={handleSubmit}
         >
           OK
         </button>
         <button
-          class="bg-red-800 p-1 rounded-m font-bold"
+          class="bg-red-800 p-1 rounded-sm font-bold"
           onClick={() => props.onDelete()}
         >
           {props.deleteText ?? "Delete"}
@@ -64,14 +64,17 @@ export const ItemForm: VoidComponent<{
     props.item != null ? props.item.name : "",
   );
   const [img, setImg] = createSignal(
-    props.item != null ? props.item.image_url : "",
+    props.item != null ? props.item.image_url : null,
   );
-  const [crop, setCrop] = createSignal({ x: 0, y: 0 });
-  const [cropArea, setCropArea] = createSignal(null);
-  const [zoom, setZoom] = createSignal(1);
+  const [crop, setCrop] = createSignal<Point>({ x: 0, y: 0 });
+  const [cropArea, setCropArea] = createSignal<Area>(null);
+  const [zoom, setZoom] = createSignal<number>(1);
   const [preview, setPreview] = createSignal(null);
 
-  const cropImage = async (imgUri, pixelCrop): Promise<string> => {
+  const cropImage = async (
+    imgUri: string,
+    pixelCrop: Area,
+  ): Promise<string> => {
     try {
       let resize_canvas = document.createElement("canvas");
       let orig_src = new Image();
@@ -100,7 +103,12 @@ export const ItemForm: VoidComponent<{
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (img() === null) {
+      let croppedImage = await cropImage(preview(), cropArea());
+      setImg(croppedImage);
+      setPreview(null);
+    }
     props.onSubmit({ name: name(), image_url: img() });
   };
 
@@ -118,25 +126,18 @@ export const ItemForm: VoidComponent<{
     }
   };
 
-  const showCroppedImage = async () => {
-    console.log("preview=", preview());
-    let croppedImage = await cropImage(preview(), cropArea());
-    setImg(croppedImage);
-    console.log(croppedImage);
-    setPreview(null);
-  };
-
   return (
     <div class="bg-black rounded-xl p-8 justify-center text-white">
       <div class="flex flex-col gap-4 max-w-80">
-        <label>Name</label>
+        <label class="leading-3" for="name-input">
+          Item label
+        </label>
         <input
           name="name"
           value={name()}
-          class="bg-gray-900 rounded-s p-1"
+          class="bg-gray-900 rounded-sm p-1"
           onChange={(e) => setName(e.target.value)}
         />
-        <label>Image</label>
         <input
           id="image-upload"
           name="file"
@@ -158,28 +159,28 @@ export const ItemForm: VoidComponent<{
             objectFit={"auto-cover"}
             style={{ containerStyle: { "background-color": "white" } }}
           />
-          <button
-            class="bg-blue-800 p-1 rounded-m font-bold"
-            onClick={showCroppedImage}
-          >
-            CROP
-          </button>
+          <input
+            type="range"
+            value={zoom()}
+            min="1"
+            max="3"
+            step="0.05"
+            onInput={(e) => setZoom(parseFloat(e.target.value))}
+          />
         </Show>
         <Show when={img() !== null}>
           <img src={img()} />
         </Show>
 
-        <Show when={preview() === null}>
-          <button
-            class="bg-green-800 p-1 rounded-m font-bold"
-            type="submit"
-            onClick={handleSubmit}
-          >
-            OK
-          </button>
-        </Show>
         <button
-          class="bg-red-800 p-1 rounded-m font-bold"
+          class="bg-green-800 p-1 rounded-sm font-bold"
+          type="submit"
+          onClick={handleSubmit}
+        >
+          OK
+        </button>
+        <button
+          class="bg-red-800 p-1 rounded-sm font-bold"
           onClick={() => props.onDelete()}
         >
           {props.deleteText ?? "Delete"}

@@ -10,7 +10,7 @@ const App: Component = () => {
       </MetaProvider>
       <TierList />;
     </>
-  )
+  );
 };
 
 export default App;
