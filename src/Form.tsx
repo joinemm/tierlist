@@ -182,9 +182,10 @@ export const ItemForm: VoidComponent<{
             <input {...dropzone.getInputProps()} />
             {
               <div
-                class="border-dashed border-gray-500 w-full border-2 rounded-xl h-32 text-gray-500 flex hover:bg-blue-900 hover:text-gray-200 hover:border-gray-200 bg-gray-950 cursor-pointer"
+                class="border-dashed border-gray-500 w-full border-2 rounded-xl h-32 text-gray-500 flex flex-col justify-center text-center items-center hover:bg-blue-900 hover:text-gray-200 hover:border-gray-200 bg-gray-950 cursor-pointer"
                 classList={{ "border-gray-200 text-gray-200 bg-blue-900": dropzone.isDragActive }}>
-                <BsImage class="m-auto" size={30} />
+                <BsImage class="mx-auto" size={30} />
+                <p>Select, drop <br></br>or paste image</p>
               </div>
             }
           </div>
@@ -229,7 +230,7 @@ export const ItemForm: VoidComponent<{
         >
           {props.deleteText ?? "Delete"}
         </button>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
