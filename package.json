@@ -22,6 +22,7 @@
   "dependencies": {
     "@solid-primitives/event-listener": "^2.4.0",
     "@solidjs/meta": "^0.29.4",
+    "@soorria/solid-dropzone": "^1.0.1",
     "@thisbeyond/solid-dnd": "^0.7.5",
     "big.js": "^6.2.2",
     "downloadjs": "^1.4.7",

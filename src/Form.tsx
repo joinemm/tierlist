@@ -1,6 +1,9 @@
-import { createSignal, Show, VoidComponent } from "solid-js";
+import { createSignal, onMount, Show, VoidComponent } from "solid-js";
 import { Tier, Item } from "./Tierlist";
 import Cropper, { Area, Point } from "solid-easy-crop";
+import { createDropzone } from '@soorria/solid-dropzone'
+import { BsImage } from 'solid-icons/bs'
+import { makeEventListener } from "@solid-primitives/event-listener";
 import "./easy-crop-style.css";
 
 export const TierForm: VoidComponent<{
@@ -71,6 +74,41 @@ export const ItemForm: VoidComponent<{
   const [zoom, setZoom] = createSignal<number>(1);
   const [preview, setPreview] = createSignal(null);
 
+  const onDrop = (acceptedFiles: File[]) => {
+    handleUpload(acceptedFiles[0])
+  }
+
+  const dropzone = createDropzone({ onDrop })
+
+  const handlePaste = (event: ClipboardEvent) => {
+    const items = event.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        handleUpload(file)
+      }
+    }
+  };
+
+  const clear = makeEventListener(
+    document,
+    "paste",
+    handlePaste,
+    { passive: true }
+  );
+
+  const handleUpload = (file: File) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => setPreview(e.target.result);
+      reader.readAsDataURL(file);
+      setImg(null);
+    } catch (e) {
+      console.error("upload failed", e);
+    }
+  }
+
   const cropImage = async (
     imgUri: string,
     pixelCrop: Area,
@@ -138,13 +176,19 @@ export const ItemForm: VoidComponent<{
           class="bg-gray-900 rounded-sm p-1"
           onChange={(e) => setName(e.target.value)}
         />
-        <input
-          id="image-upload"
-          name="file"
-          type="file"
-          multiple={false}
-          onInput={handleFileInput}
-        />
+
+        <Show when={preview() === null}>
+          <div {...dropzone.getRootProps()}>
+            <input {...dropzone.getInputProps()} />
+            {
+              <div
+                class="border-dashed border-gray-500 w-full border-2 rounded-xl h-32 text-gray-500 flex hover:bg-blue-900 hover:text-gray-200 hover:border-gray-200 bg-gray-950 cursor-pointer"
+                classList={{ "border-gray-200 text-gray-200 bg-blue-900": dropzone.isDragActive }}>
+                <BsImage class="m-auto" size={30} />
+              </div>
+            }
+          </div>
+        </Show>
         <Show when={preview() !== null}>
           <Cropper
             image={preview()}
