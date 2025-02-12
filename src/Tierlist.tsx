@@ -29,9 +29,9 @@ import { FiPlusSquare } from "solid-icons/fi";
 import { unwrap } from "solid-js/store";
 import { createUniqueId } from "solid-js";
 import { RiMediaImageAddFill } from "solid-icons/ri";
-import { BiSolidEdit } from "solid-icons/bi";
+import { BiSolidEdit, BiSolidEditAlt } from "solid-icons/bi";
 import { ImUndo2 } from "solid-icons/im";
-import { TbDownload, TbFileDownload, TbFileUpload } from "solid-icons/tb";
+import { TbDownload, TbEdit, TbFileDownload, TbFileUpload, TbPhotoEdit, TbTags } from "solid-icons/tb";
 import { IconTypes } from "solid-icons";
 tippy;
 
@@ -46,15 +46,20 @@ export type Tier = {
 export type Item = {
   id: Id;
   name: string;
-  image_url: string;
+  image_url: string | null;
   tier: Id;
   type: string;
   order: string;
 };
 
+export type Settings = {
+  showLabels: boolean;
+}
+
 type State = {
   tiers: Tier[];
   items: Item[];
+  settings: Settings;
 };
 
 declare module "solid-js" {
@@ -153,7 +158,7 @@ const TierComponent = (props: {
         ref={sortable.ref}
         style={maybeTransformStyle(sortable.transform)}
         classList={{ "opacity-50": sortable.isActiveDraggable }}
-        class="sortable flex"
+        class="flex"
       >
         <div
           {...sortable.dragActivators}
@@ -161,14 +166,14 @@ const TierComponent = (props: {
           style={`background-color: ${props.tier.color}`}
           onDblClick={() => setModalOpen(true)}
         >
-          <p class="text-center text-md justify-center align-middle m-auto text-wrap font-bold select-none">
+          <p class="text-center text-wrap text-md justify-center align-middle m-auto font-bold select-none">
             {props.tier.name}
           </p>
           <button
-            class="hidden group-hover:block absolute bottom-1 left-1"
+            class="hidden group-hover:block absolute top-0 left-0"
             onClick={() => setModalOpen(true)}
           >
-            <BiSolidEdit color="white" size={25} />
+            <TbEdit color="white" size={25} class="drop-shadow" />
           </button>
         </div>
         <div class="bg-gray-900 flex flex-wrap w-full outline outline-2 ">
@@ -225,23 +230,21 @@ const TierComponent = (props: {
   );
 };
 
-const TierOverlay = (props: { tier: Tier; items: Item[] }) => {
+const TierOverlay = (props: { tier: Tier; items: Item[]; state: State }) => {
   return (
-    <>
-      <div class="flex box-content w-full border-black border-[1px]">
-        <div
-          class="w-24 h-full min-h-24 flex flex-shrink-0 relative cursor-grabbing border-black border-[1px]"
-          style={`background-color: ${props.tier.color}`}
-        >
-          <p class="text-center text-wrap text-md justify-center align-middle m-auto font-bold">
-            {props.tier.name}
-          </p>
-        </div>
-        <div class="bg-gray-900 flex flex-wrap w-full">
-          <For each={props.items}>{(item) => <ItemOverlay item={item} />}</For>
-        </div>
+    <div class="flex box-content w-full border-black border-[1px]">
+      <div
+        class="w-24 h-full min-h-24 flex flex-shrink-0 relative cursor-grabbing border-black border-[1px]"
+        style={`background-color: ${props.tier.color}`}
+      >
+        <p class="text-center text-wrap text-md justify-center align-middle m-auto font-bold select-none">
+          {props.tier.name}
+        </p>
       </div>
-    </>
+      <div class="bg-gray-900 flex flex-wrap w-full">
+        <For each={props.items}>{(item) => <ItemOverlay item={item} state={props.state} />}</For>
+      </div>
+    </div>
   );
 };
 
@@ -258,25 +261,30 @@ const ItemComponent = (props: {
       <div
         use:sortable
         classList={{ "opacity-50": sortable.isActiveDraggable }}
-        class="w-24 h-24 bg-cover bg-center cursor-grab relative group bg-gray-300 border-black border-[1px]"
-        style={`background-image: url('${props.item.image_url}')`}
+        class="w-24 h-24 bg-cover bg-center cursor-grab relative group border-black border-[1px] overflow-hidden rounded-md"
+        style={`background-image: url('${props.item.image_url ?? "https://placehold.co/96?text=no+image"}')`}
         use:tippy={{
           props: {
             content: props.item.name,
             duration: 0,
-            offset: [0, -10],
+            offset: [0, -5],
           },
           hidden: true,
-          disabled: props.item.name.length === 0,
+          disabled: props.state.settings.showLabels || props.item.name.length === 0,
         }}
         onDblClick={() => setModalOpen(true)}
       >
         <button
-          class="hidden group-hover:block absolute bottom-1 left-1"
+          class="hidden group-hover:block absolute top-0 left-0"
           onClick={() => setModalOpen(true)}
         >
-          <BiSolidEdit color="white" size={25} />
+          <TbPhotoEdit color="white" size={25} class="drop-shadow" />
         </button>
+        <Show when={props.state.settings.showLabels}>
+          <div class="absolute w-full bg-gray-950 bottom-0 text-white text-center leading-4 text-sm">
+            {props.item.name}
+          </div>
+        </Show>
       </div>
       <Modal>
         <ItemForm
@@ -306,13 +314,19 @@ const ItemComponent = (props: {
   );
 };
 
-const ItemOverlay = (props: { item: Item }) => {
+const ItemOverlay = (props: { item: Item; state: State }) => {
   return (
     <>
       <div
-        class="w-24 h-24 bg-cover bg-center cursor-grabbing bg-gray-300 border-black border-[1px]"
-        style={`background-image: url('${props.item.image_url}')`}
-      ></div>
+        class="w-24 h-24 bg-cover bg-center cursor-grabbing relative border-black border-[1px] overflow-hidden rounded-md"
+        style={`background-image: url('${props.item.image_url ?? "https://placehold.co/96?text=no+image"}')`}
+      >
+        <Show when={props.state.settings.showLabels}>
+          <div class="absolute w-full bg-gray-950 bottom-0 text-white text-center leading-4 text-sm">
+            {props.item.name}
+          </div>
+        </Show>
+      </div>
     </>
   );
 };
@@ -330,7 +344,7 @@ const UnsortedContainer = (props: {
     <>
       <div
         ref={sortable.ref}
-        class="outline-8 outline-black outline bg-gray-900 w-[12rem]"
+        class="outline-8 outline-black outline bg-gray-900 w-[12rem] m-2"
         classList={{
           "w-[18rem]": props.items.length >= 2 * (props.state.tiers.length - 1),
         }}
@@ -419,6 +433,7 @@ export const TierList = () => {
   const [state, setState] = createStore<State>({
     tiers: [],
     items: [],
+    settings: { showLabels: false }
   });
 
   const ORDER_DELTA = 1000;
@@ -450,7 +465,7 @@ export const TierList = () => {
     return id;
   };
 
-  const newItem = (name: string, image_url: string, tier?: Id) => {
+  const newItem = (name: string, image_url: string | null, tier?: Id) => {
     setState("items", state.items.length, {
       id: createUniqueId(),
       name,
@@ -513,14 +528,14 @@ export const TierList = () => {
     let ids = draggableIsTier
       ? tiers.map((tier) => tier.id)
       : items
-          .filter((item) => item.tier == droppableTierId)
-          .map((item) => item.id);
+        .filter((item) => item.tier == droppableTierId)
+        .map((item) => item.id);
 
     let orders = draggableIsTier
       ? tiers.map((tier) => tier.order)
       : items
-          .filter((item) => item.tier == droppableTierId)
-          .map((item) => item.order);
+        .filter((item) => item.tier == droppableTierId)
+        .map((item) => item.order);
 
     let order: Big;
 
@@ -647,10 +662,10 @@ export const TierList = () => {
 
     htmlToImage
       .toPng(node, param)
-      .then(function (dataUrl) {
+      .then(function(dataUrl) {
         download(dataUrl, "tierlist.png");
       })
-      .catch(function (error) {
+      .catch(function(error) {
         console.error("oops, something went wrong!", error);
       });
   };
@@ -674,7 +689,7 @@ export const TierList = () => {
     });
   };
 
-  window.onbeforeunload = function () {
+  window.onbeforeunload = function() {
     if (state.items.length > 0) {
       return "unsaved changes!";
     }
@@ -682,7 +697,7 @@ export const TierList = () => {
 
   return (
     <div class="flex flex-col flex-1 self-stretch m-auto items-center max-w-screen-xl h-dvh">
-      <h1 class="text-4xl text-white my-8">Tierlist Maker</h1>
+      <h1 class="text-4xl text-white my-8 font-mono">Tierlist Maker</h1>
       <DragDropProvider
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
@@ -691,7 +706,7 @@ export const TierList = () => {
         <DragDropSensors />
 
         <SortableProvider ids={sortByOrder(state.tiers).map((tier) => tier.id)}>
-          <div class="flex gap-6 mb-16">
+          <div class="flex gap-4 mb-16">
             <UnsortedContainer
               items={(sortByOrder(state.items) as Item[]).filter(
                 (item) => item.tier === UNSORTED_ID,
@@ -701,28 +716,29 @@ export const TierList = () => {
               onNewItem={newItem}
             />
             <div>
-              <div
-                id="screenshot"
-                class="grid grid-flow-row outline-8 outline-black outline max-w-[48rem] min-w-[30rem] ml-2"
-              >
-                <For
-                  each={
-                    sortByOrder(state.tiers).filter(
-                      (tier) => tier.id !== UNSORTED_ID,
-                    ) as Tier[]
-                  }
+              <div id="screenshot" class="p-2">
+                <div
+                  class="grid grid-flow-row outline-8 outline-black outline max-w-[48rem] min-w-[30rem]"
                 >
-                  {(tier) => (
-                    <TierComponent
-                      tier={tier}
-                      items={(sortByOrder(state.items) as Item[]).filter(
-                        (item) => item.tier == tier.id,
-                      )}
-                      state={state}
-                      setState={setState}
-                    />
-                  )}
-                </For>
+                  <For
+                    each={
+                      sortByOrder(state.tiers).filter(
+                        (tier) => tier.id !== UNSORTED_ID,
+                      ) as Tier[]
+                    }
+                  >
+                    {(tier) => (
+                      <TierComponent
+                        tier={tier}
+                        items={(sortByOrder(state.items) as Item[]).filter(
+                          (item) => item.tier == tier.id,
+                        )}
+                        state={state}
+                        setState={setState}
+                      />
+                    )}
+                  </For>
+                </div>
               </div>
               <NewTierButton onNewTier={newTier} />
             </div>
@@ -742,6 +758,11 @@ export const TierList = () => {
                 }
               />
               <SideButton
+                title="Toggle labels"
+                icon={TbTags}
+                onClick={() => setState(produce((state: State) => state.settings.showLabels = !state.settings.showLabels))}
+              />
+              <SideButton
                 title="Download"
                 icon={TbDownload}
                 onClick={screenshot}
@@ -752,6 +773,7 @@ export const TierList = () => {
                 onClick={exportData}
               />
               <ImportButton importer={importData} />
+
             </div>
           </div>
         </SortableProvider>
@@ -764,10 +786,12 @@ export const TierList = () => {
                 items={(sortByOrder(state.items) as Item[]).filter(
                   (item) => item.tier == draggable.id,
                 )}
+                state={state}
               />
             ) : (
               <ItemOverlay
                 item={state.items.find((tier) => tier.id === draggable.id)}
+                state={state}
               />
             );
           }}
