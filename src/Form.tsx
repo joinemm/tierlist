@@ -1,11 +1,10 @@
-import { createSignal, Show, VoidComponent } from "solid-js";
+import { createSignal, onMount, Show, VoidComponent } from "solid-js";
 import { Tier, Item } from "./Tierlist";
 import Cropper, { Area, Point } from "solid-easy-crop";
-import { createDropzone } from '@soorria/solid-dropzone'
-import { BsImage } from 'solid-icons/bs'
+import { createDropzone } from "@soorria/solid-dropzone";
+import { BsImage } from "solid-icons/bs";
 import { makeEventListener } from "@solid-primitives/event-listener";
-import { FaSolidXmark } from 'solid-icons/fa'
-import { RiSystemDeleteBin6Line } from 'solid-icons/ri'
+import { RiSystemDeleteBin6Line } from "solid-icons/ri";
 import "./easy-crop-style.css";
 
 export const TierForm: VoidComponent<{
@@ -20,10 +19,6 @@ export const TierForm: VoidComponent<{
   const [color, setColor] = createSignal(
     props.tier != null ? props.tier.color : "#ffffff",
   );
-
-  const handleSubmit = () => {
-    props.onSubmit({ name: name(), color: color() });
-  };
 
   return (
     <div class="bg-black rounded-xl p-8 justify-center text-white font-mono">
@@ -50,7 +45,7 @@ export const TierForm: VoidComponent<{
           <button
             class="p-2 w-full rounded-xl font-bold bg-black border-2 hover:text-black hover:bg-green-600 border-green-600 text-green-600"
             type="submit"
-            onClick={handleSubmit}
+            onClick={() => props.onSubmit({ name: name(), color: color() })}
           >
             Save
           </button>
@@ -81,55 +76,32 @@ export const ItemForm: VoidComponent<{
   const [crop, setCrop] = createSignal<Point>({ x: 0, y: 0 });
   const [cropArea, setCropArea] = createSignal<Area>(null);
   const [zoom, setZoom] = createSignal<number>(1);
-  const [preview, setPreview] = createSignal(null);
+  const [preview, setPreview] = createSignal<string>(null);
 
-  const handlePaste = (event: ClipboardEvent) => {
-    const items = event.clipboardData.items;
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === 'file') {
-        const file = item.getAsFile();
-        handleUpload(file)
-      }
-    }
-  };
-
-  const onDrop = (acceptedFiles: File[]) => {
-    handleUpload(acceptedFiles[0])
-  }
-
-  const dropzone = createDropzone({ onDrop })
-
-  makeEventListener(
-    document,
-    "paste",
-    handlePaste,
-    { passive: true }
+  onMount(() =>
+    makeEventListener(document, "paste", handlePaste, { passive: true }),
   );
 
-  const handleUpload = (file: File) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = (e) => setPreview(e.target.result);
-      reader.readAsDataURL(file);
-      setImg(null);
-    } catch (e) {
-      console.error("upload failed", e);
-    }
-  }
+  const dropzone = createDropzone({
+    onDrop: (acceptedFiles: File[]) => initCropper(acceptedFiles[0]),
+  });
 
-  const cropImage = async (
-    imgUri: string,
-    pixelCrop: Area,
-  ): Promise<string> => {
-    try {
-      let resize_canvas = document.createElement("canvas");
-      let orig_src = new Image();
-      orig_src.src = imgUri;
-      resize_canvas.width = pixelCrop.width;
-      resize_canvas.height = pixelCrop.height;
-      let cnv = resize_canvas.getContext("2d");
-      cnv.drawImage(
+  const initCropper = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => setPreview(e.target.result as string);
+    reader.readAsDataURL(file);
+    setImg(null);
+  };
+
+  const cropImage = (imgUri: string, pixelCrop: Area): Promise<string> => {
+    let canvas = document.createElement("canvas");
+    canvas.width = pixelCrop.width;
+    canvas.height = pixelCrop.height;
+    let orig_src = new Image();
+    orig_src.src = imgUri;
+    canvas
+      .getContext("2d")
+      .drawImage(
         orig_src,
         pixelCrop.x,
         pixelCrop.y,
@@ -140,24 +112,26 @@ export const ItemForm: VoidComponent<{
         pixelCrop.width,
         pixelCrop.height,
       );
-      return new Promise((resolve, _) => {
-        resize_canvas.toBlob((file) => {
-          resolve(URL.createObjectURL(file));
-        });
-      });
-    } catch (e) {
-      console.log("Couldn't crop image due to", e);
+    return new Promise((resolve, _) =>
+      canvas.toBlob((file) => resolve(URL.createObjectURL(file)), "image/jpeg"),
+    );
+  };
+
+  const handlePaste = (event: ClipboardEvent) => {
+    const items = event.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        initCropper(file);
+      }
     }
   };
 
   const handleCrop = async () => {
-    let croppedImage = await cropImage(preview(), cropArea());
+    const croppedImage = await cropImage(preview(), cropArea());
     setImg(croppedImage);
     setPreview(null);
-  }
-
-  const handleSubmit = async () => {
-    props.onSubmit({ name: name(), image_url: img() });
   };
 
   return (
@@ -165,9 +139,7 @@ export const ItemForm: VoidComponent<{
       <div class="flex flex-col gap-4 w-80">
         <Show when={preview() === null}>
           <div class="flex flex-col gap-1">
-            <label>
-              Item label
-            </label>
+            <label>Item label</label>
             <input
               name="name"
               value={name()}
@@ -177,13 +149,24 @@ export const ItemForm: VoidComponent<{
           </div>
           <Show when={img() === null}>
             <div {...dropzone.getRootProps()}>
-              <input {...dropzone.getInputProps()} type="file" accept="image" multiple={false} />
+              <input
+                {...dropzone.getInputProps()}
+                type="file"
+                accept="image"
+                multiple={false}
+              />
               {
                 <div
                   class="border-dashed border-gray-500 w-full border-2 rounded-xl h-80 text-gray-500 flex flex-col justify-center text-center items-center hover:bg-blue-900 hover:text-gray-200 hover:border-gray-200 bg-gray-950 cursor-pointer"
-                  classList={{ "border-gray-200 text-gray-200 bg-blue-900": dropzone.isDragActive }}>
+                  classList={{
+                    "border-gray-200 text-gray-200 bg-blue-900":
+                      dropzone.isDragActive,
+                  }}
+                >
                   <BsImage class="mx-auto" size={30} />
-                  <p>Select, drop <br></br>or paste image</p>
+                  <p>
+                    Select, drop <br></br>or paste image
+                  </p>
                 </div>
               }
             </div>
@@ -203,7 +186,7 @@ export const ItemForm: VoidComponent<{
             <button
               class="p-2 w-full rounded-xl font-bold bg-black border-2 hover:text-black hover:bg-green-600 border-green-600 text-green-600"
               type="submit"
-              onClick={handleSubmit}
+              onClick={() => props.onSubmit({ name: name(), image_url: img() })}
             >
               Save
             </button>
@@ -221,12 +204,12 @@ export const ItemForm: VoidComponent<{
             image={preview()}
             crop={crop()}
             zoom={zoom()}
-            aspect={1 / 1}
             onZoomChange={setZoom}
             onCropChange={setCrop}
             onCropComplete={(_, croppedAreaPixels) =>
               setCropArea(croppedAreaPixels)
             }
+            aspect={1 / 1}
             objectFit={"auto-cover"}
             style={{ containerStyle: { "background-color": "white" } }}
             restrictPosition={true}
@@ -237,7 +220,7 @@ export const ItemForm: VoidComponent<{
             value={zoom()}
             min="1"
             max="3"
-            step="0.05"
+            step="0.01"
             onInput={(e) => setZoom(parseFloat(e.target.value))}
           />
           <div class="flex gap-4">
@@ -257,6 +240,6 @@ export const ItemForm: VoidComponent<{
           </div>
         </Show>
       </div>
-    </div >
+    </div>
   );
 };

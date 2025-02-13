@@ -24,12 +24,14 @@
     "@solidjs/meta": "^0.29.4",
     "@soorria/solid-dropzone": "^1.0.1",
     "@thisbeyond/solid-dnd": "^0.7.5",
+    "@types/downloadjs": "^1.4.6",
     "big.js": "^6.2.2",
     "downloadjs": "^1.4.7",
     "html-to-image": "^1.11.11",
     "solid-easy-crop": "^0.0.0",
     "solid-icons": "^1.1.0",
     "solid-js": "^1.9.3",
-    "solid-tippy": "^0.2.1"
+    "solid-tippy": "^0.2.1",
+    "uuid": "^11.0.5"
   }
 }

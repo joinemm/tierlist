@@ -13,7 +13,7 @@ import {
   maybeTransformStyle,
 } from "@thisbeyond/solid-dnd";
 import Big from "big.js";
-import { batch, onMount, For, createSignal, Show, JSX } from "solid-js";
+import { batch, onMount, For, createSignal, Show, JSX, VoidComponent } from "solid-js";
 import {
   createStore,
   produce,
@@ -27,13 +27,21 @@ import { Portal } from "solid-js/web";
 import { TierForm, ItemForm } from "./Form";
 import { FiPlusSquare } from "solid-icons/fi";
 import { unwrap } from "solid-js/store";
-import { createUniqueId } from "solid-js";
 import { RiMediaImageAddFill } from "solid-icons/ri";
-import { BiSolidEdit, BiSolidEditAlt } from "solid-icons/bi";
 import { ImUndo2 } from "solid-icons/im";
-import { TbDownload, TbEdit, TbFileDownload, TbFileUpload, TbPhotoEdit, TbTags } from "solid-icons/tb";
+import {
+  TbDownload,
+  TbEdit,
+  TbFileDownload,
+  TbFileUpload,
+  TbPhotoEdit,
+  TbTags,
+} from "solid-icons/tb";
 import { IconTypes } from "solid-icons";
-tippy;
+import { v4 as uuidv4 } from 'uuid';
+
+// "use" this import because typescript doesn't see the directive
+0 && tippy;
 
 export type Tier = {
   id: Id;
@@ -54,7 +62,7 @@ export type Item = {
 
 export type Settings = {
   showLabels: boolean;
-}
+};
 
 type State = {
   tiers: Tier[];
@@ -73,11 +81,11 @@ declare module "solid-js" {
 
 const UNSORTED_ID = "unsorted";
 
-const SideButton = (props: {
+const SideButton: VoidComponent<{
   onClick: JSX.EventHandlerUnion<HTMLButtonElement, MouseEvent>;
   icon: IconTypes;
   title: string;
-}) => {
+}> = (props) => {
   return (
     <button
       class="bg-gray-900 rounded-md hover:bg-gray-700 w-12 h-12 text-white"
@@ -96,13 +104,13 @@ const SideButton = (props: {
   );
 };
 
-const ImportButton = (props: { importer: Function }) => {
+const ImportButton: VoidComponent<{ importer: (data: State) => void }> = (props) => {
   const { Modal, setModalOpen } = createModal();
   const [file, setFile] = createSignal(null);
 
-  const handleChange = (e) => {
+  const handleChange: JSX.ChangeEventHandlerUnion<HTMLInputElement, InputEvent> = (e) => {
     const fileReader = new FileReader();
-    fileReader.readAsText(e.target.files[0], "UTF-8");
+    fileReader.readAsText(e.currentTarget.files[0], "UTF-8");
     fileReader.onload = (e) => {
       setFile(e.target.result);
     };
@@ -143,14 +151,47 @@ const ImportButton = (props: { importer: Function }) => {
   );
 };
 
-const TierComponent = (props: {
+const TierComponent: VoidComponent<{
   tier: Tier;
   items: Item[];
   state: State;
   setState: SetStoreFunction<State>;
-}) => {
+}> = (props) => {
   const sortable = createSortable(props.tier.id, props.tier);
   const { Modal, setModalOpen } = createModal();
+
+  const handleSubmit = (data: Tier) => {
+    props.setState(
+      "tiers",
+      (tiers) => tiers.id == props.tier.id,
+      produce((tier: Tier) => {
+        tier.name = data.name;
+        tier.color = data.color;
+      }),
+    );
+    setModalOpen(false);
+  }
+
+  const handleDelete = () => {
+    batch(() => {
+      props.setState(
+        "tiers",
+        props.state.tiers.filter(
+          (tier: Tier) => tier.id !== props.tier.id,
+        ),
+      );
+      props.setState(
+        "items",
+        props.state.items.map((item: Item) => {
+          if (item.tier === props.tier.id) {
+            return { ...item, tier: UNSORTED_ID };
+          } else {
+            return item;
+          }
+        }),
+      );
+    })
+  }
 
   return (
     <>
@@ -193,44 +234,15 @@ const TierComponent = (props: {
       <Modal>
         <TierForm
           tier={props.tier}
-          onSubmit={(data: Tier) => {
-            props.setState(
-              "tiers",
-              (tiers) => tiers.id == props.tier.id,
-              produce((tier: Tier) => {
-                tier.name = data.name;
-                tier.color = data.color;
-              }),
-            );
-            setModalOpen(false);
-          }}
-          onDelete={() =>
-            batch(() => {
-              props.setState(
-                "tiers",
-                props.state.tiers.filter(
-                  (tier: Tier) => tier.id !== props.tier.id,
-                ),
-              );
-              props.setState(
-                "items",
-                props.state.items.map((item: Item) => {
-                  if (item.tier === props.tier.id) {
-                    return { ...item, tier: UNSORTED_ID };
-                  } else {
-                    return item;
-                  }
-                }),
-              );
-            })
-          }
+          onSubmit={handleSubmit}
+          onDelete={handleDelete}
         />
       </Modal>
     </>
   );
 };
 
-const TierOverlay = (props: { tier: Tier; items: Item[]; state: State }) => {
+const TierOverlay: VoidComponent<{ tier: Tier; items: Item[]; state: State }> = (props) => {
   return (
     <div class="flex box-content w-full border-black border-[1px]">
       <div
@@ -242,19 +254,41 @@ const TierOverlay = (props: { tier: Tier; items: Item[]; state: State }) => {
         </p>
       </div>
       <div class="bg-gray-900 flex flex-wrap w-full">
-        <For each={props.items}>{(item) => <ItemOverlay item={item} state={props.state} />}</For>
+        <For each={props.items}>
+          {(item) => <ItemOverlay item={item} state={props.state} />}
+        </For>
       </div>
     </div>
   );
 };
 
-const ItemComponent = (props: {
+const ItemComponent: VoidComponent<{
   item: Item;
   state: State;
   setState: SetStoreFunction<State>;
-}) => {
+}> = (props) => {
   const sortable = createSortable(props.item.id, props.item);
   const { Modal, setModalOpen } = createModal();
+
+  const handleSubmit = (data: Item) => {
+    props.setState(
+      "items",
+      (items) => items.id == props.item.id,
+      produce((item: Item) => {
+        item.name = data.name;
+        item.image_url = data.image_url;
+      }),
+    );
+    setModalOpen(false);
+  }
+
+  const handleDelete = () =>
+    props.setState(
+      "items",
+      props.state.items.filter(
+        (item: Item) => item.id !== props.item.id,
+      ),
+    )
 
   return (
     <>
@@ -270,7 +304,8 @@ const ItemComponent = (props: {
             offset: [0, -5],
           },
           hidden: true,
-          disabled: props.state.settings.showLabels || props.item.name.length === 0,
+          disabled:
+            props.state.settings.showLabels || props.item.name.length === 0,
         }}
         onDblClick={() => setModalOpen(true)}
       >
@@ -289,25 +324,8 @@ const ItemComponent = (props: {
       <Modal>
         <ItemForm
           item={props.item}
-          onSubmit={(data: Item) => {
-            props.setState(
-              "items",
-              (items) => items.id == props.item.id,
-              produce((item: Item) => {
-                item.name = data.name;
-                item.image_url = data.image_url;
-              }),
-            );
-            setModalOpen(false);
-          }}
-          onDelete={() =>
-            props.setState(
-              "items",
-              props.state.items.filter(
-                (item: Item) => item.id !== props.item.id,
-              ),
-            )
-          }
+          onSubmit={handleSubmit}
+          onDelete={handleDelete}
         />
       </Modal>
     </>
@@ -331,14 +349,19 @@ const ItemOverlay = (props: { item: Item; state: State }) => {
   );
 };
 
-const UnsortedContainer = (props: {
+const UnsortedContainer: VoidComponent<{
   items: Item[];
   state: State;
   setState: SetStoreFunction<State>;
-  onNewItem: Function;
-}) => {
+  onNewItem: (name: string, image_url: string) => void;
+}> = (props) => {
   const sortable = createSortable(UNSORTED_ID, { type: "tier" });
   const { Modal, setModalOpen } = createModal();
+
+  const handleSubmit = (data: Item) => {
+    props.onNewItem(data.name, data.image_url);
+    setModalOpen(false);
+  }
 
   return (
     <>
@@ -372,10 +395,7 @@ const UnsortedContainer = (props: {
       <Modal>
         <ItemForm
           item={null}
-          onSubmit={(data: Item) => {
-            props.onNewItem(data.name, data.image_url);
-            setModalOpen(false);
-          }}
+          onSubmit={handleSubmit}
           onDelete={() => setModalOpen(false)}
           deleteText="Cancel"
         />
@@ -384,8 +404,13 @@ const UnsortedContainer = (props: {
   );
 };
 
-const NewTierButton = (props: { onNewTier: Function }) => {
+const NewTierButton: VoidComponent<{ onNewTier: (name: string, color: string) => void }> = (props) => {
   const { Modal, setModalOpen } = createModal();
+
+  const handleSubmit = (data: Tier) => {
+    props.onNewTier(data.name, data.color);
+    setModalOpen(false);
+  }
 
   return (
     <>
@@ -398,10 +423,7 @@ const NewTierButton = (props: { onNewTier: Function }) => {
       <Modal>
         <TierForm
           tier={null}
-          onSubmit={(data: Tier) => {
-            props.onNewTier(data.name, data.color);
-            setModalOpen(false);
-          }}
+          onSubmit={handleSubmit}
           onDelete={() => setModalOpen(false)}
           deleteText="Cancel"
         />
@@ -429,11 +451,11 @@ const createModal = () => {
   };
 };
 
-export const TierList = () => {
+export const TierList: VoidComponent = () => {
   const [state, setState] = createStore<State>({
     tiers: [],
     items: [],
-    settings: { showLabels: false }
+    settings: { showLabels: false },
   });
 
   const ORDER_DELTA = 1000;
@@ -454,7 +476,7 @@ export const TierList = () => {
   };
 
   const newTier = (name: string, color: string): Id => {
-    const id = createUniqueId();
+    const id = uuidv4();
     setState("tiers", state.tiers.length, {
       id: id,
       name,
@@ -467,12 +489,22 @@ export const TierList = () => {
 
   const newItem = (name: string, image_url: string | null, tier?: Id) => {
     setState("items", state.items.length, {
-      id: createUniqueId(),
+      id: uuidv4(),
       name,
       image_url,
       tier: tier ?? UNSORTED_ID,
       type: "item",
       order: getNextOrder(),
+    });
+  };
+
+  const initUnsorted = () => {
+    setState("tiers", state.tiers.length, {
+      id: UNSORTED_ID,
+      name: "Unsorted",
+      color: "#000000",
+      type: "tier",
+      order: Number.MAX_SAFE_INTEGER.toString(),
     });
   };
 
@@ -486,16 +518,6 @@ export const TierList = () => {
       newTier("D", "#7fbfff");
     });
   });
-
-  const initUnsorted = () => {
-    setState("tiers", state.tiers.length, {
-      id: UNSORTED_ID,
-      name: "Unsorted",
-      color: "#000000",
-      type: "tier",
-      order: Number.MAX_SAFE_INTEGER.toString(),
-    });
-  };
 
   const move = (
     draggable: Draggable,
@@ -522,18 +544,15 @@ export const TierList = () => {
       return;
     }
 
-    const tiers = sortByOrder(state.tiers) as Tier[];
-    const items = sortByOrder(state.items) as Item[];
-
     let ids = draggableIsTier
-      ? tiers.map((tier) => tier.id)
-      : items
+      ? sortedTiers().map((tier) => tier.id)
+      : sortedItems()
         .filter((item) => item.tier == droppableTierId)
         .map((item) => item.id);
 
     let orders = draggableIsTier
-      ? tiers.map((tier) => tier.order)
-      : items
+      ? sortedTiers().map((tier) => tier.order)
+      : sortedItems()
         .filter((item) => item.tier == droppableTierId)
         .map((item) => item.order);
 
@@ -623,9 +642,8 @@ export const TierList = () => {
 
       const changingTier = draggable.data.tier !== closestTier.id;
       if (changingTier) {
-        const items = sortByOrder(state.items) as Item[];
         const afterLastItem =
-          items
+          sortedItems()
             .filter((item) => item.tier == closestTier.id)
             .map((item) => item.id)
             .at(-1) === closestItem.id &&
@@ -644,8 +662,10 @@ export const TierList = () => {
   const onDragEnd: DragEventHandler = ({ draggable, droppable }) =>
     move(draggable, droppable, false);
 
-  const screenshot = () => {
+  const handleScreenshot = () => {
     const node = document.getElementById("screenshot");
+
+    // Scale everything by 3 to get a crisp image
     const scale = 3;
     const style = {
       transform: "scale(" + scale + ")",
@@ -662,38 +682,53 @@ export const TierList = () => {
 
     htmlToImage
       .toPng(node, param)
-      .then(function(dataUrl) {
-        download(dataUrl, "tierlist.png");
-      })
-      .catch(function(error) {
-        console.error("oops, something went wrong!", error);
-      });
+      .then((dataUrl) => download(dataUrl, "tierlist.png"))
+      .catch((error) => console.error("oops, something went wrong!", error));
   };
 
-  const exportData = () => {
-    let data = unwrap(state);
-    let exportedData = {
+  const handleExport = () => {
+    const data = unwrap(state);
+    const exportedData = {
       tiers: data.tiers.filter((tier) => tier.id !== UNSORTED_ID),
       items: data.items,
     };
     download(JSON.stringify(exportedData), "tierlist_export.json");
   };
 
-  const importData = (data: State) => {
+  const handleImport = (data: State) => {
     batch(() => {
       setState("tiers", []);
       setState("items", []);
       initUnsorted();
+    })
+
+    batch(() => {
       setState("tiers", reconcile([...data.tiers]));
       setState("items", reconcile([...data.items]));
     });
   };
 
-  window.onbeforeunload = function() {
+  const handleUnsort = () => {
+    setState(
+      "items",
+      (item) => item.tier !== UNSORTED_ID,
+      produce((item: Item) => {
+        item.tier = UNSORTED_ID;
+      }),
+    )
+  }
+
+  window.onbeforeunload = () => {
     if (state.items.length > 0) {
+      // pops up the "confirm leaving page" dialog
+      // but this custom text isn't shown anywhere
       return "unsaved changes!";
     }
   };
+
+  const sortedItems = () => sortByOrder(state.items) as Item[]
+  const sortedTiers = () => sortByOrder(state.tiers) as Tier[]
+  const itemsInTier = (id: Id) => sortedItems().filter((item) => item.tier == id)
 
   return (
     <div class="flex flex-col flex-1 self-stretch m-auto items-center max-w-screen-xl h-dvh">
@@ -705,34 +740,24 @@ export const TierList = () => {
       >
         <DragDropSensors />
 
-        <SortableProvider ids={sortByOrder(state.tiers).map((tier) => tier.id)}>
+        <SortableProvider ids={sortedTiers().map((tier) => tier.id)}>
           <div class="flex gap-4 mb-16">
             <UnsortedContainer
-              items={(sortByOrder(state.items) as Item[]).filter(
-                (item) => item.tier === UNSORTED_ID,
-              )}
+              items={itemsInTier(UNSORTED_ID)}
               state={state}
               setState={setState}
               onNewItem={newItem}
             />
             <div>
               <div id="screenshot" class="p-2">
-                <div
-                  class="grid grid-flow-row outline-8 outline-black outline max-w-[48rem] min-w-[30rem]"
-                >
+                <div class="grid grid-flow-row outline-8 outline-black outline max-w-[48rem] min-w-[30rem]">
                   <For
-                    each={
-                      sortByOrder(state.tiers).filter(
-                        (tier) => tier.id !== UNSORTED_ID,
-                      ) as Tier[]
-                    }
+                    each={sortedTiers().filter((tier) => tier.id !== UNSORTED_ID)}
                   >
                     {(tier) => (
                       <TierComponent
                         tier={tier}
-                        items={(sortByOrder(state.items) as Item[]).filter(
-                          (item) => item.tier == tier.id,
-                        )}
+                        items={itemsInTier(tier.id)}
                         state={state}
                         setState={setState}
                       />
@@ -747,33 +772,32 @@ export const TierList = () => {
               <SideButton
                 title="Unsort all"
                 icon={ImUndo2}
-                onClick={() =>
-                  setState(
-                    "items",
-                    (_) => true,
-                    produce((item: Item) => {
-                      item.tier = UNSORTED_ID;
-                    }),
-                  )
-                }
+                onClick={handleUnsort}
               />
               <SideButton
                 title="Toggle labels"
                 icon={TbTags}
-                onClick={() => setState(produce((state: State) => state.settings.showLabels = !state.settings.showLabels))}
+                onClick={() =>
+                  setState(
+                    produce(
+                      (state: State) =>
+                      (state.settings.showLabels =
+                        !state.settings.showLabels),
+                    ),
+                  )
+                }
               />
               <SideButton
                 title="Download"
                 icon={TbDownload}
-                onClick={screenshot}
+                onClick={handleScreenshot}
               />
               <SideButton
                 title="Export"
                 icon={TbFileUpload}
-                onClick={exportData}
+                onClick={handleExport}
               />
-              <ImportButton importer={importData} />
-
+              <ImportButton importer={handleImport} />
             </div>
           </div>
         </SortableProvider>
@@ -783,9 +807,7 @@ export const TierList = () => {
             return draggable.data.type === "tier" ? (
               <TierOverlay
                 tier={state.tiers.find((tier) => tier.id === draggable.id)}
-                items={(sortByOrder(state.items) as Item[]).filter(
-                  (item) => item.tier == draggable.id,
-                )}
+                items={itemsInTier(draggable.id)}
                 state={state}
               />
             ) : (
