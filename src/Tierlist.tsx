@@ -516,7 +516,6 @@ export const TierList: VoidComponent = () => {
       newTier("B", "#fefe82");
       newTier("C", "#7dff7e");
       newTier("D", "#7fbfff");
-      newItem("uuYYAAyyggI", null, a)
     });
   });
 
