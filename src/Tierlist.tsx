@@ -88,7 +88,7 @@ const SideButton: VoidComponent<{
 }> = (props) => {
   return (
     <button
-      class="bg-gray-900 rounded-md hover:bg-gray-700 w-12 h-12 text-white"
+      class="bg-zinc-800 rounded-md hover:bg-zinc-600 w-12 h-12 text-white"
       onClick={props.onClick}
       use:tippy={{
         props: {
@@ -203,7 +203,7 @@ const TierComponent: VoidComponent<{
       >
         <div
           {...sortable.dragActivators}
-          class="group w-24 h-full min-h-24 flex flex-shrink-0 relative cursor-grab border-black border-[1px] box-border"
+          class="group w-24 h-full min-h-24 flex flex-shrink-0 relative cursor-grab"
           style={`background-color: ${props.tier.color}`}
           onDblClick={() => setModalOpen(true)}
         >
@@ -217,7 +217,7 @@ const TierComponent: VoidComponent<{
             <TbEdit color="white" size={25} class="drop-shadow" />
           </button>
         </div>
-        <div class="bg-gray-900 flex flex-wrap w-full outline outline-2 ">
+        <div class="bg-zinc-900 flex flex-wrap w-full outline outline-2">
           <SortableProvider ids={props.items.map((item) => item.id)}>
             <For each={props.items}>
               {(item) => (
@@ -236,6 +236,7 @@ const TierComponent: VoidComponent<{
           tier={props.tier}
           onSubmit={handleSubmit}
           onDelete={handleDelete}
+          onCancel={() => setModalOpen(false)}
         />
       </Modal>
     </>
@@ -244,16 +245,16 @@ const TierComponent: VoidComponent<{
 
 const TierOverlay: VoidComponent<{ tier: Tier; items: Item[]; state: State }> = (props) => {
   return (
-    <div class="flex box-content w-full border-black border-[1px]">
+    <div class="flex box-content w-full outline outline-2">
       <div
-        class="w-24 h-full min-h-24 flex flex-shrink-0 relative cursor-grabbing border-black border-[1px]"
+        class="w-24 h-full min-h-24 flex flex-shrink-0 relative cursor-grabbing"
         style={`background-color: ${props.tier.color}`}
       >
         <p class="text-center text-wrap text-md justify-center align-middle m-auto font-bold select-none">
           {props.tier.name}
         </p>
       </div>
-      <div class="bg-gray-900 flex flex-wrap w-full">
+      <div class="bg-zinc-900 flex flex-wrap w-full">
         <For each={props.items}>
           {(item) => <ItemOverlay item={item} state={props.state} />}
         </For>
@@ -316,7 +317,7 @@ const ItemComponent: VoidComponent<{
           <TbPhotoEdit color="white" size={25} class="drop-shadow" />
         </button>
         <Show when={props.state.settings.showLabels}>
-          <div class="absolute w-full bg-gray-950 bottom-0 text-white text-center leading-4 text-sm">
+          <div class="absolute w-full bg-zinc-950 bottom-0 text-white text-center leading-5 text-sm">
             {props.item.name}
           </div>
         </Show>
@@ -326,6 +327,7 @@ const ItemComponent: VoidComponent<{
           item={props.item}
           onSubmit={handleSubmit}
           onDelete={handleDelete}
+          onCancel={() => setModalOpen(false)}
         />
       </Modal>
     </>
@@ -334,18 +336,16 @@ const ItemComponent: VoidComponent<{
 
 const ItemOverlay = (props: { item: Item; state: State }) => {
   return (
-    <>
-      <div
-        class="w-24 h-24 bg-cover bg-center cursor-grabbing relative border-black border-[1px] overflow-hidden rounded-md"
-        style={`background-image: url('${props.item.image_url ?? "https://placehold.co/96?text=no+image"}')`}
-      >
-        <Show when={props.state.settings.showLabels}>
-          <div class="absolute w-full bg-gray-950 bottom-0 text-white text-center leading-4 text-sm">
-            {props.item.name}
-          </div>
-        </Show>
-      </div>
-    </>
+    <div
+      class="w-24 h-24 bg-cover bg-center cursor-grabbing relative border-black border-[1px] overflow-hidden rounded-md"
+      style={`background-image: url('${props.item.image_url ?? "https://placehold.co/96?text=no+image"}')`}
+    >
+      <Show when={props.state.settings.showLabels}>
+        <div class="absolute w-full bg-zinc-950 bottom-0 text-white text-center leading-5 text-sm">
+          {props.item.name}
+        </div>
+      </Show>
+    </div>
   );
 };
 
@@ -367,7 +367,7 @@ const UnsortedContainer: VoidComponent<{
     <>
       <div
         ref={sortable.ref}
-        class="outline-8 outline-black outline bg-gray-900 w-[12rem] m-2"
+        class="outline-8 outline-black outline bg-zinc-900 w-[12rem] m-2 rounded-md"
         classList={{
           "w-[18rem]": props.items.length >= 2 * (props.state.tiers.length - 1),
         }}
@@ -396,8 +396,8 @@ const UnsortedContainer: VoidComponent<{
         <ItemForm
           item={null}
           onSubmit={handleSubmit}
-          onDelete={() => setModalOpen(false)}
-          deleteText="Cancel"
+          onDelete={null}
+          onCancel={() => setModalOpen(false)}
         />
       </Modal>
     </>
@@ -424,8 +424,8 @@ const NewTierButton: VoidComponent<{ onNewTier: (name: string, color: string) =>
         <TierForm
           tier={null}
           onSubmit={handleSubmit}
-          onDelete={() => setModalOpen(false)}
-          deleteText="Cancel"
+          onDelete={null}
+          onCancel={() => setModalOpen(false)}
         />
       </Modal>
     </>
@@ -455,7 +455,7 @@ export const TierList: VoidComponent = () => {
   const [state, setState] = createStore<State>({
     tiers: [],
     items: [],
-    settings: { showLabels: false },
+    settings: { showLabels: true },
   });
 
   const ORDER_DELTA = 1000;
@@ -511,11 +511,12 @@ export const TierList: VoidComponent = () => {
   onMount(() => {
     batch(() => {
       initUnsorted();
-      newTier("S", "#ff7f7e");
+      const a = newTier("S", "#ff7f7e");
       newTier("A", "#ffbf7d");
       newTier("B", "#fefe82");
       newTier("C", "#7dff7e");
       newTier("D", "#7fbfff");
+      newItem("uuYYAAyyggI", null, a)
     });
   });
 
@@ -750,7 +751,7 @@ export const TierList: VoidComponent = () => {
             />
             <div>
               <div id="screenshot" class="p-2">
-                <div class="grid grid-flow-row outline-8 outline-black outline max-w-[48rem] min-w-[30rem]">
+                <div class="grid grid-flow-row outline-8 outline-black outline max-w-[48rem] min-w-[30rem] rounded-md overflow-hidden">
                   <For
                     each={sortedTiers().filter((tier) => tier.id !== UNSORTED_ID)}
                   >
@@ -768,7 +769,7 @@ export const TierList: VoidComponent = () => {
               <NewTierButton onNewTier={newTier} />
             </div>
 
-            <div class="flex-col flex gap-4 w-12">
+            <div class="flex-col flex gap-4 w-12 mt-2">
               <SideButton
                 title="Unsort all"
                 icon={ImUndo2}

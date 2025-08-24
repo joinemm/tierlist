@@ -10,7 +10,8 @@ import "./easy-crop-style.css";
 export const TierForm: VoidComponent<{
   tier: Tier | null;
   onSubmit: Function;
-  onDelete: Function;
+  onDelete: Function | null;
+  onCancel: Function | null;
   deleteText?: string;
 }> = (props) => {
   const [name, setName] = createSignal(
@@ -22,12 +23,12 @@ export const TierForm: VoidComponent<{
 
   return (
     <div class="bg-black rounded-xl p-8 justify-center text-white font-mono">
-      <div class="flex flex-col gap-4 w-60">
+      <div class="flex flex-col gap-4 w-80">
         <div class="flex flex-col gap-1">
           <label>Tier label</label>
           <input
             value={name()}
-            class="bg-gray-900 rounded-md p-2"
+            class="bg-zinc-900 rounded-md p-2"
             onChange={(e) => setName(e.target.value)}
           />
         </div>
@@ -49,22 +50,33 @@ export const TierForm: VoidComponent<{
           >
             Save
           </button>
-          <button
-            class="p-2 w-full rounded-xl font-bold bg-black border-2 hover:text-black hover:bg-red-600 border-red-600 text-red-600"
-            onClick={() => props.onDelete()}
-          >
-            {props.deleteText ?? "Delete"}
-          </button>
+          <Show when={props.onDelete !== null}>
+            <button
+              class="p-2 w-full rounded-xl font-bold bg-black border-2 hover:text-black hover:bg-red-600 border-red-600 text-red-600"
+              onClick={() => props.onDelete()}
+            >
+              Delete
+            </button>
+          </Show>
+          <Show when={props.onCancel !== null}>
+            <button
+              class="p-2 w-full rounded-xl font-bold bg-black border-2 hover:text-black hover:bg-slate-600 border-slate-600 text-slate-600"
+              onClick={() => props.onCancel()}
+            >
+              Cancel
+            </button>
+          </Show>
         </div>
       </div>
-    </div>
+    </div >
   );
 };
 
 export const ItemForm: VoidComponent<{
   item: Item | null;
   onSubmit: Function;
-  onDelete: Function;
+  onDelete: Function | null;
+  onCancel: Function | null;
   deleteText?: string;
 }> = (props) => {
   const [name, setName] = createSignal(
@@ -143,7 +155,7 @@ export const ItemForm: VoidComponent<{
             <input
               name="name"
               value={name()}
-              class="bg-gray-900 rounded-md p-2"
+              class="bg-zinc-900 rounded-md p-2"
               onChange={(e) => setName(e.target.value)}
             />
           </div>
@@ -157,9 +169,9 @@ export const ItemForm: VoidComponent<{
               />
               {
                 <div
-                  class="border-dashed border-gray-500 w-full border-2 rounded-xl h-80 text-gray-500 flex flex-col justify-center text-center items-center hover:bg-blue-900 hover:text-gray-200 hover:border-gray-200 bg-gray-950 cursor-pointer"
+                  class="border-dashed border-gray-500 w-full border-2 rounded-xl h-80 text-gray-500 flex flex-col justify-center text-center items-center hover:bg-slate-900 hover:text-gray-200 hover:border-gray-200 bg-zinc-950 cursor-pointer"
                   classList={{
-                    "border-gray-200 text-gray-200 bg-blue-900":
+                    "border-gray-200 text-gray-200 bg-slate-900":
                       dropzone.isDragActive,
                   }}
                 >
@@ -190,12 +202,22 @@ export const ItemForm: VoidComponent<{
             >
               Save
             </button>
-            <button
-              class="p-2 w-full rounded-xl font-bold bg-black border-2 hover:text-black hover:bg-red-600 border-red-600 text-red-600"
-              onClick={() => props.onDelete()}
-            >
-              {props.deleteText ?? "Delete"}
-            </button>
+            <Show when={props.onDelete !== null}>
+              <button
+                class="p-2 w-full rounded-xl font-bold bg-black border-2 hover:text-black hover:bg-red-600 border-red-600 text-red-600"
+                onClick={() => props.onDelete()}
+              >
+                Delete
+              </button>
+            </Show>
+            <Show when={props.onCancel !== null}>
+              <button
+                class="p-2 w-full rounded-xl font-bold bg-black border-2 hover:text-black hover:bg-slate-600 border-slate-600 text-slate-600"
+                onClick={() => props.onCancel()}
+              >
+                Cancel
+              </button>
+            </Show>
           </div>
         </Show>
 
