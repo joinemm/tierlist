@@ -1,13 +1,11 @@
 import { type Component } from "solid-js";
 import { TierList } from "./Tierlist";
-import { MetaProvider, Title } from "@solidjs/meta";
+import { Analytics } from "./Analytics";
 
 const App: Component = () => {
   return (
     <>
-      <MetaProvider>
-        <Title>Tierlist Maker</Title>
-      </MetaProvider>
+      <Analytics />
       <TierList />;
     </>
   );
