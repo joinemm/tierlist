@@ -13,7 +13,16 @@ import {
   maybeTransformStyle,
 } from "@thisbeyond/solid-dnd";
 import Big from "big.js";
-import { batch, onMount, For, createSignal, Show, JSX, VoidComponent } from "solid-js";
+import {
+  batch,
+  onMount,
+  For,
+  createSignal,
+  Show,
+  JSX,
+  VoidComponent,
+  createMemo,
+} from "solid-js";
 import {
   createStore,
   produce,
@@ -36,9 +45,10 @@ import {
   TbFileUpload,
   TbPhotoEdit,
   TbTags,
+  TbViewportWide,
 } from "solid-icons/tb";
 import { IconTypes } from "solid-icons";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 
 // "use" this import because typescript doesn't see the directive
 0 && tippy;
@@ -62,6 +72,7 @@ export type Item = {
 
 export type Settings = {
   showLabels: boolean;
+  wrapRows: boolean;
 };
 
 type State = {
@@ -104,11 +115,16 @@ const SideButton: VoidComponent<{
   );
 };
 
-const ImportButton: VoidComponent<{ importer: (data: State) => void }> = (props) => {
+const ImportButton: VoidComponent<{ importer: (data: State) => void }> = (
+  props,
+) => {
   const { Modal, setModalOpen } = createModal();
   const [file, setFile] = createSignal(null);
 
-  const handleChange: JSX.ChangeEventHandlerUnion<HTMLInputElement, InputEvent> = (e) => {
+  const handleChange: JSX.ChangeEventHandlerUnion<
+    HTMLInputElement,
+    InputEvent
+  > = (e) => {
     const fileReader = new FileReader();
     fileReader.readAsText(e.currentTarget.files[0], "UTF-8");
     fileReader.onload = (e) => {
@@ -170,15 +186,13 @@ const TierComponent: VoidComponent<{
       }),
     );
     setModalOpen(false);
-  }
+  };
 
   const handleDelete = () => {
     batch(() => {
       props.setState(
         "tiers",
-        props.state.tiers.filter(
-          (tier: Tier) => tier.id !== props.tier.id,
-        ),
+        props.state.tiers.filter((tier: Tier) => tier.id !== props.tier.id),
       );
       props.setState(
         "items",
@@ -190,8 +204,8 @@ const TierComponent: VoidComponent<{
           }
         }),
       );
-    })
-  }
+    });
+  };
 
   return (
     <>
@@ -243,7 +257,11 @@ const TierComponent: VoidComponent<{
   );
 };
 
-const TierOverlay: VoidComponent<{ tier: Tier; items: Item[]; state: State }> = (props) => {
+const TierOverlay: VoidComponent<{
+  tier: Tier;
+  items: Item[];
+  state: State;
+}> = (props) => {
   return (
     <div class="flex box-content w-full outline outline-2">
       <div
@@ -281,15 +299,13 @@ const ItemComponent: VoidComponent<{
       }),
     );
     setModalOpen(false);
-  }
+  };
 
   const handleDelete = () =>
     props.setState(
       "items",
-      props.state.items.filter(
-        (item: Item) => item.id !== props.item.id,
-      ),
-    )
+      props.state.items.filter((item: Item) => item.id !== props.item.id),
+    );
 
   return (
     <>
@@ -361,16 +377,21 @@ const UnsortedContainer: VoidComponent<{
   const handleSubmit = (data: Item) => {
     props.onNewItem(data.name, data.image_url);
     setModalOpen(false);
-  }
+  };
+
+  const computedWidth = createMemo(() => {
+    const items = props.items.length;
+    const tiers = Math.max(1, (props.state.tiers?.length ?? 1) - 1);
+    const step = Math.floor(items / tiers) - 1;
+    return Math.min(12 + Math.max(0, step) * 6, 48);
+  });
 
   return (
     <>
       <div
         ref={sortable.ref}
-        class="outline-8 outline-black outline bg-zinc-900 w-[12rem] m-2 rounded-md"
-        classList={{
-          "w-[18rem]": props.items.length >= 2 * (props.state.tiers.length - 1),
-        }}
+        class="outline-8 outline-black outline bg-zinc-900 m-2 rounded-md shrink-0"
+        style={{ width: `${computedWidth()}rem` }}
       >
         <div class="flex flex-wrap w-full">
           <SortableProvider ids={props.items.map((item) => item.id)}>
@@ -404,13 +425,15 @@ const UnsortedContainer: VoidComponent<{
   );
 };
 
-const NewTierButton: VoidComponent<{ onNewTier: (name: string, color: string) => void }> = (props) => {
+const NewTierButton: VoidComponent<{
+  onNewTier: (name: string, color: string) => void;
+}> = (props) => {
   const { Modal, setModalOpen } = createModal();
 
   const handleSubmit = (data: Tier) => {
     props.onNewTier(data.name, data.color);
     setModalOpen(false);
-  }
+  };
 
   return (
     <>
@@ -455,7 +478,7 @@ export const TierList: VoidComponent = () => {
   const [state, setState] = createStore<State>({
     tiers: [],
     items: [],
-    settings: { showLabels: true },
+    settings: { showLabels: true, wrapRows: false },
   });
 
   const ORDER_DELTA = 1000;
@@ -511,12 +534,19 @@ export const TierList: VoidComponent = () => {
   onMount(() => {
     batch(() => {
       initUnsorted();
-      const a = newTier("S", "#ff7f7e");
+      newTier("S", "#ff7f7e");
       newTier("A", "#ffbf7d");
       newTier("B", "#fefe82");
       newTier("C", "#7dff7e");
       newTier("D", "#7fbfff");
     });
+    // for debug
+    // for (var i = 0; i < 40; i++) {
+    //   newItem("thingy" + i, null);
+    // }
+    // for (var i = 0; i < 10; i++) {
+    //   newItem("thingy" + i, null, a);
+    // }
   });
 
   const move = (
@@ -547,14 +577,14 @@ export const TierList: VoidComponent = () => {
     let ids = draggableIsTier
       ? sortedTiers().map((tier) => tier.id)
       : sortedItems()
-        .filter((item) => item.tier == droppableTierId)
-        .map((item) => item.id);
+          .filter((item) => item.tier == droppableTierId)
+          .map((item) => item.id);
 
     let orders = draggableIsTier
       ? sortedTiers().map((tier) => tier.order)
       : sortedItems()
-        .filter((item) => item.tier == droppableTierId)
-        .map((item) => item.order);
+          .filter((item) => item.tier == droppableTierId)
+          .map((item) => item.order);
 
     let order: Big;
 
@@ -700,7 +730,7 @@ export const TierList: VoidComponent = () => {
       setState("tiers", []);
       setState("items", []);
       initUnsorted();
-    })
+    });
 
     batch(() => {
       setState("tiers", reconcile([...data.tiers]));
@@ -715,8 +745,8 @@ export const TierList: VoidComponent = () => {
       produce((item: Item) => {
         item.tier = UNSORTED_ID;
       }),
-    )
-  }
+    );
+  };
 
   window.onbeforeunload = () => {
     if (state.items.length > 0) {
@@ -726,12 +756,13 @@ export const TierList: VoidComponent = () => {
     }
   };
 
-  const sortedItems = () => sortByOrder(state.items) as Item[]
-  const sortedTiers = () => sortByOrder(state.tiers) as Tier[]
-  const itemsInTier = (id: Id) => sortedItems().filter((item) => item.tier == id)
+  const sortedItems = () => sortByOrder(state.items) as Item[];
+  const sortedTiers = () => sortByOrder(state.tiers) as Tier[];
+  const itemsInTier = (id: Id) =>
+    sortedItems().filter((item) => item.tier == id);
 
   return (
-    <div class="flex flex-col flex-1 self-stretch m-auto items-center max-w-screen-xl h-dvh">
+    <div class="flex flex-col flex-1 self-stretch m-auto items-center h-dvh">
       <h1 class="text-4xl text-white my-8 font-mono">Tierlist Maker</h1>
       <DragDropProvider
         onDragOver={onDragOver}
@@ -750,9 +781,14 @@ export const TierList: VoidComponent = () => {
             />
             <div>
               <div id="screenshot" class="p-2">
-                <div class="grid grid-flow-row outline-8 outline-black outline max-w-[48rem] min-w-[30rem] rounded-md overflow-hidden">
+                <div
+                  class="grid grid-flow-row outline-8 outline-black outline min-w-[30rem] rounded-md overflow-hidden shrink-0"
+                  classList={{ "max-w-[48rem]": state.settings.wrapRows }}
+                >
                   <For
-                    each={sortedTiers().filter((tier) => tier.id !== UNSORTED_ID)}
+                    each={sortedTiers().filter(
+                      (tier) => tier.id !== UNSORTED_ID,
+                    )}
                   >
                     {(tier) => (
                       <TierComponent
@@ -781,8 +817,20 @@ export const TierList: VoidComponent = () => {
                   setState(
                     produce(
                       (state: State) =>
-                      (state.settings.showLabels =
-                        !state.settings.showLabels),
+                        (state.settings.showLabels =
+                          !state.settings.showLabels),
+                    ),
+                  )
+                }
+              />
+              <SideButton
+                title="Toggle wrapping"
+                icon={TbViewportWide}
+                onClick={() =>
+                  setState(
+                    produce(
+                      (state: State) =>
+                        (state.settings.wrapRows = !state.settings.wrapRows),
                     ),
                   )
                 }
