@@ -68,7 +68,7 @@ export const TierForm: VoidComponent<{
           </Show>
         </div>
       </div>
-    </div >
+    </div>
   );
 };
 
