@@ -720,7 +720,10 @@ export const TierList: VoidComponent = () => {
     const data = unwrap(state);
     const exportedData = {
       tiers: data.tiers.filter((tier) => tier.id !== UNSORTED_ID),
-      items: data.items,
+      items: data.items.map((item) => ({
+        ...item,
+        image_url: null,
+      })),
     };
     download(JSON.stringify(exportedData), "tierlist_export.json");
   };
